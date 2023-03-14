@@ -1,0 +1,11 @@
+[Unit]
+Description=OpenAI_WBFeedback_Tg_bot
+[Service]
+WorkingDirectory=/home/OpenAI_WBFeedback_Tg_bot
+User=root
+ExecStart=/home/OpenAI_WBFeedback_Tg_bot/venv/bin/python3.10 main.py
+Restart=on-failure
+RestartSec=5s
+[Install]
+WantedBy=multi-user.target
+EOF

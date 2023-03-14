@@ -100,7 +100,6 @@ class DBManager:
             result = self.tables.users.select()
             self.logger.debug(self.sign + f'OK -> selected all users fields from DB')
 
-        print('ХОРОШО' if isinstance(result, tuple) else 'ПЛОХО', self.sign+'!!!get_all_users_id:!!!', result, type(result))
 
         return result
 
@@ -158,7 +157,6 @@ class DBManager:
             nums = self.tables.users.select().where(self.tables.users.date_last_request >= date).count()
             self.logger.debug(self.sign + f'OK -> COUNT {nums} users WHERE date_last_request == date: {date}')
 
-        print('ХОРОШО' if isinstance(nums, str) else 'ПЛОХО', self.sign+'!!!count_users:!!!', nums, type(nums))
         return nums
 
     def select_all_contacts_users(self, update: Message | CallbackQuery = None) -> tuple:
@@ -177,14 +175,12 @@ class DBManager:
         else:
             self.logger.debug(self.sign + f'OK -> SELECT all contacts users -> return -> {len(users)} users contacts')
 
-        print('ХОРОШО' if isinstance(users, tuple) else 'ПЛОХО', self.sign+'!!!select_all_contacts_users:!!!', users, type(users))
         return users
 
     def select_password(self, user_id: int) -> str:
         user = self.tables.users.select(self.tables.users.password).where(self.tables.users.user_id == user_id).get()
         self.logger.debug(self.sign + f'OK -> SELECT password {user.password}')
 
-        print('ХОРОШО' if isinstance(user.password, str) else 'ПЛОХО', self.sign+'!!!select_password:!!!', user.password, type(user.password))
         return user.password
 
     def update_last_request_data(self, user_id: str, text_last_request: str) -> bool | None:

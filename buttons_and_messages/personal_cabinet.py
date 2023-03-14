@@ -356,7 +356,6 @@ class MessageEnterYourselfSetUpNotificationTimes(BaseMessage):
         if len(period) == 2 \
                 and all([sym.isdigit() and int(sym) in range(25) for sym in period]) and period[0] > period[1]:
             self.children_buttons = self._set_children()
-            print(self.children_buttons)
             with self.dbase:
                 wb_row = self.tables.wildberries.get_or_none(user_id=update.from_user.id)
                 wb_row.notification_times = enter_data

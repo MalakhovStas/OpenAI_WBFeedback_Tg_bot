@@ -58,7 +58,6 @@ class WBAPIManager:
     @staticmethod
     async def check_data(data: str) -> str | None:
         data = data.replace(' ', '').replace('-', '').lstrip('+')
-        print('check_data:', data)
         return data if data.isdigit() else None
 
     @staticmethod
@@ -66,7 +65,6 @@ class WBAPIManager:
         if response_request and response_request.get('success'):
             if response := response_request.get('response'):
                 if token := response.get('token'):
-                    # print(f'func get_token -> Token: {token}')
                     return token
 
     async def send_phone_number(self, phone_number: str, update) -> str | None:
@@ -78,7 +76,7 @@ class WBAPIManager:
                 method='post',
                 data={"phoneNumber": int(phone_number)}
             )
-            print(self.sign + f'send phoneNumber: {phone_number}, response: {response_request}')
+            self.logger.debug(self.sign + f'send phoneNumber: {phone_number}, response: {response_request}')
             if sms_token := await self.get_token(response_request):
                 self.dbase.save_phone_number_and_sms_token(phone_number, sms_token, user_id=update.from_user.id)
         return sms_token
@@ -92,7 +90,7 @@ class WBAPIManager:
                 method='post',
                 data={"code": sms_code, "token": sms_token}
             )
-            print(self.sign + f'send sms code: {sms_code}, response: {response_request}')
+            self.logger.debug(self.sign + f'send sms code: {sms_code}, response: {response_request}')
             if seller_token := await self.get_token(response_request):
                 self.dbase.save_seller_token(seller_token, user_id=update.from_user.id)
         return seller_token
@@ -106,7 +104,7 @@ class WBAPIManager:
                 method='post',
                 data={"sellerToken": seller_token}
             )
-            print(self.sign + f'get_passport_token -> send sellerToken, response: {response_request}')
+            self.logger.debug(self.sign + f'get_passport_token -> send sellerToken, response: {response_request}')
             if passport_token := await self.get_token(response_request):
                 self.dbase.save_passport_token(passport_token, user_id=update.from_user.id)
         return passport_token
@@ -120,7 +118,7 @@ class WBAPIManager:
                 method='post',
                 data={"passportToken": passport_token}
             )
-            print(self.sign + f'get_seller_token_from_passport_token -> send passportToken, response: {response_request}')
+            self.logger.debug(self.sign + f'get_seller_token_from_passport_token -> send passportToken, response: {response_request}')
             if seller_token := await self.get_token(response_request):
                 self.dbase.save_seller_token(seller_token, user_id=update.from_user.id)
         return seller_token
@@ -132,7 +130,7 @@ class WBAPIManager:
             method='post',
             data={"type": "seller", 'token': seller_token}
         )
-        print(self.sign + f'introspect sellerToken, response: {response_request}')
+        self.logger.debug(self.sign + f'introspect sellerToken, response: {response_request}')
         if response_request and response_request.get('success'):
             if response := response_request.get('response'):
                 if wb_user_id := response.get('userId'):
@@ -151,7 +149,7 @@ class WBAPIManager:
             headers={"Cookie": f"WBToken={seller_token}"},
             add_headers=True
         )
-        print(self.sign + f'get_suppliers -> send sellerToken, response: {response_request}')
+        self.logger.debug(self.sign + f'get_suppliers -> send sellerToken, response: {response_request}')
         # TODO тут нужна настройка
         if response_request:
             try:
@@ -166,7 +164,7 @@ class WBAPIManager:
                 self.dbase.save_suppliers(suppliers, user_id=update.from_user.id)
                 pass
         if not suppliers:
-            print(self.sign + f'ERROR get_suppliers, response: {response_request}, "exc:" {exc}')
+            self.logger.debug(self.sign + f'ERROR get_suppliers, response: {response_request}, "exc:" {exc}')
         return suppliers
 
     async def get_feedback_list(self, seller_token: str, supplier: dict[str, str]) -> dict[str, dict]:
@@ -182,14 +180,13 @@ class WBAPIManager:
         if response_request:
             if data := response_request.get('data'):
                 feedbacks = data.get('feedbacks')
-                print('кол-во feedbacks:', len(feedbacks))
         result = {feedback.get('id'): {'text': feedback.get('text'), 'answer': feedback.get('answer'),
                                        'productValuation': feedback.get('productValuation'),
                                        'productName': feedback.get('productDetails')['productName'],
                                        "createdDate": feedback.get('createdDate')} for feedback in feedbacks}
 
-        print(self.sign + f'get_feedback_list -> send x-supplier-id from supplier: "{supplier.values()}" '
-                          f'response: {json.dumps(result, indent=4, ensure_ascii=False)}')
+        # print(self.sign + f'get_feedback_list -> send x-supplier-id from supplier: "{supplier.values()}" '
+        #                   f'response: {json.dumps(result, indent=4, ensure_ascii=False)}')
         # self.dbase.save_unanswered_feedbacks(result, user_id=update.from_user.id)
         return result
 
