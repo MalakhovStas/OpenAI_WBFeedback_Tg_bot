@@ -1,0 +1,285 @@
+"""Модуль методов доступных только администраторам"""
+import asyncio
+from datetime import datetime, timedelta
+
+from aiogram.types import Message
+from utils.states import FSMAdminStates
+from config import ADMINS, TECH_ADMINS, PATH_FILE_DEBUG_LOGS, PATH_FILE_ERRORS_LOGS
+from aiogram.utils.exceptions import BotBlocked, UserDeactivated, ChatNotFound
+import openpyxl
+
+
+class AdminsManager:
+    """ Класс Singleton для работы с кабинетом администратора и соблюдения принципа DRY """
+
+    __instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if cls.__instance is None:
+            cls.__instance = super().__new__(cls)
+        return cls.__instance
+
+    def __init__(self, bot, logger, dbase):
+        self.bot = bot
+        self.logger = logger
+        self.dbase = dbase
+        self.admins = tuple(map(int, ADMINS)) if ADMINS else tuple()
+        self.tech_admins = tuple(map(int, TECH_ADMINS)) if TECH_ADMINS else tuple()
+        self.sign = self.__class__.__name__ + ': '
+
+    @staticmethod
+    async def split_users_list(users_list, step=30):
+        len_list = len(users_list)
+        result = []
+
+        if len_list <= step:
+            result.append(users_list)
+        else:
+            for start in range(len_list)[::step]:
+                stop = start + step
+                result.append(users_list[start:stop])
+        return result
+
+    async def admin_commands(self, message) -> tuple:
+        command: str = message.get_command()
+
+        if not (message.from_user.id in self.admins or message.from_user.id in self.tech_admins):
+            return None, None, None
+
+        text, next_state, type_result = None, None, None
+
+        if command == '/commands':
+            text = f'<b>Команды администратора:</b>\n' \
+                   f'<b>/commands</b> - список команд\n' \
+                   f'<b>/my_id</b> - мой id\n' \
+                   f'<b>/how_users</b> - кол-во пользователей в базе\n' \
+                   f'<b>/mailing_admins</b> - рассылка администраторам бота\n' \
+                   f'<b>/mailing</b> - рассылка пользователям бота\n' \
+                   f'<b>/stat</b> - статистика по пользователям\n' \
+                   f'<b>/users_info</b> - выгрузка детальной информации о пользователях\n' \
+                   f'<b>/block_user</b> - заблокировать пользователя\n' \
+                   f'<b>/unblock_user</b> - разблокировать пользователя\n' \
+                   f'<b>/change_user_balance</b> - изменить баланс пользователя\n' \
+                   # f'<b>/unloading_logs</b> - выгрузка логов'
+
+        elif command == '/my_id':
+            text = f'Твой id: {message.from_user.id}'
+
+        elif command == '/mailing_admins':
+            text = f'Введите сообщение для рассылки администраторам:'
+            next_state = FSMAdminStates.mailing_admins
+
+        elif command == '/mailing':
+            text = f'Введите пароль:'
+            next_state = FSMAdminStates.password_mailing
+
+        elif command in ['/block_user', '/unblock_user']:
+            text = '<b>Введите id пользователя:</b>'
+            next_state = FSMAdminStates.block_user if command == '/block_user' else FSMAdminStates.unblock_user
+
+        elif command == '/change_user_balance':
+            text = '<b>Введите id пользователя и через пробел +сумму на которую хотите увеличить его баланс,' \
+                   ' или -сумму на которую хотите уменьшить, для обнуления баланса введите 0</b>'
+
+            next_state = FSMAdminStates.change_user_balance
+
+        elif command == '/unloading_logs':
+            await self.bot.send_document(chat_id=message.from_user.id, document=open(PATH_FILE_DEBUG_LOGS, 'rb'))
+            await self.bot.send_document(chat_id=message.from_user.id, document=open(PATH_FILE_ERRORS_LOGS, 'rb'))
+            self.logger.debug(self.sign + f'OK -> send logs files -> user: {message.from_user.id}, '
+                                          f'username: {message.from_user.username}')
+            text = '<b>Файлы с логами отправлены</b>'
+
+        else:
+            num_users = self.dbase.count_users(all_users=True)
+            num_users_active_from_24hours = self.dbase.count_users(
+                date=datetime.now().replace(microsecond=0) - timedelta(hours=24))
+            num_users_active_from_week = self.dbase.count_users(date=datetime.now().date() - timedelta(days=7))
+
+            if command == '/how_users':
+                text = f'В базе: {num_users} пользователей'
+
+            elif command == '/stat':
+                line = ''
+                new_users_in_month = 0
+
+                for day in range(datetime.now().date().day, 0, -1):
+                    new_users_in_day = self.dbase.count_users(date=datetime.now().date() - timedelta(days=day - 1))
+                    new_users_in_month += new_users_in_day
+                    line += f'\n{datetime.now().day - day + 1}  /  {new_users_in_day}'
+
+                    text = f'Всего пользователей в боте: <b>{num_users}</b>' \
+                           f'\nАктивных за 24 часа: <b>{num_users_active_from_24hours}</b>' \
+                           f'\nАктивных за неделю: <b>{num_users_active_from_week}</b>' \
+                           f'\n\nЧисло месяца  /  новых пользователей{line}\nВсего в этом месяце: <b>{new_users_in_month}</b>'
+
+            elif command == '/users_info':
+                wb = openpyxl.Workbook()
+                ws = wb.active
+                ws.append((f'Всего пользователей в боте: {num_users}',))
+                ws.append((f'Активных за 24 часа: {num_users_active_from_24hours}',))
+                ws.append((f'Активных за неделю: {num_users_active_from_week}',))
+                ws.append(('',))
+
+                ws.append(('Число месяца  /  новых пользователей',))
+                new_users_in_month = 0
+                for day in range(datetime.now().date().day, 0, -1):
+                    new_users_in_day = self.dbase.count_users(date=datetime.now().date()-timedelta(days=day - 1))
+                    new_users_in_month += new_users_in_day
+                    ws.append((f'{datetime.now().day - day + 1}  /  {new_users_in_day}',))
+                ws.append((f'Всего в этом месяце: {new_users_in_month}',))
+                ws.append(('',))
+
+                ws.append(('User_id', 'Name', 'Username', 'Дата регистрации', 'Дата последнего запроса',
+                           'Текст последнего запроса', 'Всего запросов', 'Бан от пользователя'))
+                for user in self.dbase.select_all_contacts_users():
+                    ws.append((user.user_id, user.first_name, f'{f"@{user.username}" if user.username else ""}',
+                               user.date_join, user.date_last_request, user.text_last_request, user.num_requests,
+                               user.ban_from_user))
+                wb.save('users_info.xlsx')
+
+                text = open('users_info.xlsx', 'rb')
+                type_result = 'document'
+
+        return text, next_state, type_result
+
+    async def in_password(self, update: Message, current_state: FSMAdminStates) -> tuple:
+        password: str = self.dbase.select_password(user_id=update.from_user.id)
+
+        text = None
+        next_state = None
+
+        if update.text != password:
+            text = f'Пароль не верный'
+            next_state = None
+
+        else:
+            if current_state == 'FSMAdminStates:password_mailing':
+                text = f'Введите сообщение для рассылки:'
+                next_state = FSMAdminStates.mailing
+
+        return text, next_state
+
+    async def mailing(self, update: Message, only_admins: bool = False) -> tuple:
+        """This method with asincio gather - has many threds"""
+        dict_errors = {}
+        num_send = 0
+
+        if only_admins:
+            id_users = tuple(set(self.admins + self.tech_admins))
+        else:
+            # id_users: tuple = self.dbase.get_all_users(id_only=True)  # рассылка по всем, нужна для обновления данных
+            id_users: tuple = self.dbase.get_all_users(id_only=True, not_ban=True)  # о тем кто не забанил бота
+
+        start_mailing = datetime.now()
+
+        for i_list_part in [list_part for list_part in await self.split_users_list(id_users)]:
+            data = [self.fast_send_message(update=update, user_id=user_id) for user_id in i_list_part]
+            list_result = await asyncio.gather(*data)
+
+            for result in list_result:
+                if result[0]:
+                    num_send += 1
+                else:
+                    error = result[1]
+                    dict_errors[error] = dict_errors.get(error) + 1 if dict_errors.get(error) else 1
+
+            await asyncio.sleep(1)
+
+        time_mailing = datetime.strftime(datetime.utcfromtimestamp(
+            timedelta.total_seconds(datetime.now() - start_mailing)), '%H:%M:%S')
+
+        from utils import admins_send_message
+        await admins_send_message.func_admins_message(update=update,
+                                                      message=f'&#9888 <b>Ошибки рассылки:</b>\n'
+                                                              f'<b>Errors:</b> {dict_errors}\n'
+                                                              f'<b>Отправлено:</b> {num_send} из {len(id_users)}\n'
+                                                              f'<b>Время рассылки:</b> {time_mailing}')
+
+        text = f'<b>Отправлено:</b> {num_send} из {len(id_users)}'
+        next_state = None
+        self.logger.debug(self.sign + f'OK -> send {num_send} out of {len(id_users)} users')
+
+        return text, next_state
+
+    async def fast_send_message(self, update: Message, user_id) -> tuple:
+        try:
+            if update.content_type in ('photo',):
+                await self.bot.send_photo(chat_id=user_id, photo=update.photo[0].file_id, caption=update.caption)
+            elif update.content_type in ('sticker',):
+                await self.bot.send_sticker(chat_id=user_id, sticker=update.sticker.file_id)
+            elif update.content_type in ('document',):
+                await self.bot.send_document(chat_id=user_id, document=update.document.file_id, caption=update.caption)
+            elif update.content_type in ('video',):
+                await self.bot.send_video(chat_id=user_id, video=update.video.file_id, caption=update.caption)
+            elif update.content_type in ('video_note',):
+                await self.bot.send_video_note(chat_id=user_id, video_note=update.video_note.file_id)
+            elif update.content_type in ('audio',):
+                await self.bot.send_audio(chat_id=user_id, audio=update.audio.file_id, caption=update.caption)
+            elif update.content_type in ('voice',):
+                await self.bot.send_voice(chat_id=user_id, voice=update.voice.file_id)
+            else:
+                await self.bot.send_message(chat_id=user_id, text=f'{update.text}')
+
+        except (BotBlocked, UserDeactivated, ChatNotFound) as error:
+            error = error.__repr__()
+            # dict_errors[error] = dict_errors.get(error) + 1 if dict_errors.get(error) else 1
+            self.logger.error(self.sign + f'BAD -> not send to user {user_id} error: {error}')
+            self.dbase.update_ban_from_user(user_id=user_id, ban_from_user=True)
+            return False, error
+
+        except Exception as error:
+            error = error.__repr__()
+            # dict_errors[error] = dict_errors.get(error) + 1 if dict_errors.get(error) else 1
+            self.logger.error(self.sign + f'BAD -> not send to user {user_id} error: {error}')
+            return False, error
+
+        # Чтобы ускорить рассылку закомментировать код ниже
+        else:
+            self.dbase.update_ban_from_user(user_id=user_id, ban_from_user=False)
+
+        return True, None
+
+    async def block_unblock_user(self, user_id, block: bool = False):
+        text, next_state = None, 'not_reset'
+        if user_id.isdigit():
+
+            if result := self.dbase.update_user_access(user_id, block=block):
+
+                text = f'<b>Пользователь:</b> {user_id}\n{"<b>Контакт:</b> https://t.me/" + result[1] if result[1] else ""}\n' \
+                       f'<b>{"ЗАБЛОКИРОВАН" if block else "РАЗБЛОКИРОВАН"}</b>'
+
+                next_state = None
+
+            else:
+                text = f'Пользователь: <b>{user_id}</b> в базе не зарегистрирован'
+        else:
+            text = 'Введены некорректные данные'
+        return text, next_state
+
+    async def change_user_balance(self, data: str) -> tuple:
+        text, next_state = None, 'not_reset'
+
+        if len(data) == 2 and data[0].isdigit() and data[1].startswith(('+', '-', '0')):
+            user_id = data[0]
+            up_balance = data[1][1:] if data[1].startswith('+') else None
+            down_balance = data[1][1:] if data[1].startswith('-') else None
+            zero_balance = True if data[1] == '0' else None
+
+            if result := self.dbase.update_user_balance(user_id=user_id, up_balance=up_balance,
+                                                        down_balance=down_balance, zero_balance=zero_balance):
+
+                if not result[0] and result[1] == 'bad data':
+                    text = f'Ошибка обновления баланса, возможно введены некорректные данные, ' \
+                           f'баланс пользователя: <b>{user_id}</b> не изменён'
+                else:
+                    text = f'Баланс пользователя\n<b>id:</b> {user_id}\n' \
+                           f'{"<b>Контакт:</b> https://t.me/" + result[2] if result[2] else ""}\n' \
+                           f'ОБНОВЛЕН, новый баланс: <b>{result[1]}</b>'
+                    next_state = None
+            else:
+                text = f'Пользователь: <b>{user_id}</b> в базе не зарегистрирован'
+        else:
+            text = 'Введены некорректные данные'
+
+        return text, next_state
