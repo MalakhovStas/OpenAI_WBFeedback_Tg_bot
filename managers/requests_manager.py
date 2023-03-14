@@ -31,6 +31,7 @@ class RequestsManager:
 
     async def __call__(self, url, headers: dict | None = None, method: str | None = None,
                        data: dict | list | None = None, list_requests: list | None = None, add_headers: bool = False):
+        self.logger.debug(self.sign+f'request url: {url}, method: {method}, body: {data}, headers: {add_headers}')
         if not headers:
             headers = self.content_type | self.user_agent
         elif headers and add_headers:
@@ -49,6 +50,7 @@ class RequestsManager:
                 method=method,
                 data=data
             )
+        self.logger.debug(self.sign+f'result request: {result}')
         return result
 
     @staticmethod
