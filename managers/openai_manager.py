@@ -19,6 +19,7 @@ class OpenAIManager:
 
     async def answer(self, prompt: str) -> str:
         """ Запрос к ChatGPT"""
+        self.logger.info(self.sign + f"question: {prompt}")
         response = await self.openai.Completion.acreate(
           model="text-davinci-003",
           prompt=prompt,
@@ -29,7 +30,7 @@ class OpenAIManager:
           presence_penalty=0
         )
         answer = response['choices'][0]['text'].lstrip('\n')
-        self.logger.info(self.sign + f"{answer}")
+        self.logger.info(self.sign + f"answer: {answer}")
         return answer
 
     async def generate_image_from_text(self, prompt):
@@ -52,6 +53,12 @@ class OpenAIManager:
     async def reply_feedback(self, feedback: str) -> str:
         if await self._check_type_str(feedback):
             return await self.answer(f'Напиши ответ на отзыв: {feedback}')
+
+    async def reply_many_feedbacks(self, feed_name: str, feedback: str) -> tuple:
+        answer = None
+        if await self._check_type_str(feedback):
+            answer = await self.answer(f'Напиши ответ на отзыв: {feedback}')
+        return feed_name, answer
 
     async def some_question(self, prompt: str) -> str:
         if await self._check_type_str(prompt):

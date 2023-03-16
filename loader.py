@@ -34,6 +34,6 @@ security = SecurityManager(dbase=dbase, logger=logger)
 adm = AdminsManager(bot=bot, logger=logger, dbase=dbase)
 
 alm = AnswerLogicManager(ai=ai, bot=bot, logger=logger)
-wb_api = WBAPIManager(dbase=dbase, rm=rm, logger=logger)
+wb_api = WBAPIManager(dbase=dbase, rm=rm, ai=ai, logger=logger)
 
-Base.ai, Base.bot, Base.wb_api = ai, bot, wb_api
+Base.ai, Base.bot, Base.wb_api, Base.logger = ai, bot, wb_api, logger

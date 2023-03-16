@@ -88,15 +88,18 @@ class Wildberries(Model):
     sms_token = CharField(null=True)
     sellerToken = CharField(null=True)
     passportToken = CharField(null=True)
-    suppliers = JSONField(null=True)
-    feedbacks = JSONField(null=True)
+
+    suppliers = JSONField(null=False, default=dict())
+    unanswered_feedbacks = JSONField(null=False, default=dict())
+    ignored_feedbacks = JSONField(null=False, default=dict())
+
     signature_to_answer = CharField(null=True)
-    answer_mode = JSONField(null=False, default={"1": 0, "2": 0, "3": 0, "4": 0, "5": 0})
-    unanswered_feedbacks = JSONField(null=True)
-    ignored_feedbacks = JSONField(null=True)
+
     notification_times = CharField(null=False, default='around_the_clock')
     timezone_notification_times = CharField(null=False, default='Москва (UTC +2)')
+
     automatic_replies_notifications = BooleanField(null=False, default=True)
+    answer_mode = JSONField(null=False, default={"1": 0, "2": 0, "3": 0, "4": 0, "5": 0})
 
     class Meta:
         database = db

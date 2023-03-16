@@ -27,13 +27,13 @@ class AnswerLogicManager:
         keyboard = InlineKeyboardMarkup()
         if buttons:
             for index, button in enumerate(buttons, 1):
-                if button.callback == 'GoToBack':
+                if button.__class__.__name__ == 'GoToBack':
                     main_menu = True
                     insert = True
 
                 if len(buttons) == 1 or index < len(buttons):
                     if button.__class__.__name__ == 'EditFeedback':
-                        text = '\n' + parent_button.any_data.get('answer') if parent_button else 'Ошибка'
+                        text = f"\n{parent_button.any_data.get('answer')}" if parent_button else "Ошибка"
                         keyboard.add(InlineKeyboardButton(
                             text=button.name, switch_inline_query_current_chat=text))
                     else:
@@ -57,12 +57,7 @@ class AnswerLogicManager:
                         ) -> tuple[str | None, InlineKeyboardMarkup | None, str | None]:
 
         if isinstance(update, CallbackQuery):
-            if update.data.startswith('Supplier'):
-                button = self.main.supplier_collection.get(update.data)
-            elif update.data.startswith('Feedback'):
-                button = self.main.feedback_collection.get(update.data)
-            else:
-                button = self.main.button_store.get(update.data)
+            button = await self.main.button_search_and_action_any_collections(action='get', button_name=update.data)
             buttons = button.children_buttons
         else:
             if update.get_command() == '/start':
@@ -103,18 +98,22 @@ class AnswerLogicManager:
             else:
                 reply_text, next_state = button.reply_text, button.next_state
 
-        if button.__class__.__name__.startswith('Feedback'):
-            if reply_text.endswith(BaseButton.default_generate_answer):
-                reply_text = await self.reply_feedback_button(button=button, reply_text=reply_text, update=update)
-            else:
-                reply_text = button.reply_text + f"<code>{button.any_data.get('answer')}</code>"
+        # if button.__class__.__name__.startswith('Feedback'):
+        #     if reply_text.endswith(BaseButton.default_generate_answer):
+        #         reply_text = await self.reply_feedback_button(button=button, reply_text=reply_text, update=update)
+        #     else:
+                # reply_text = button.reply_text + f"<code>{button.any_data.get('answer')}</code>"
 
         if button.__class__.__name__.startswith('Feedback'):
             parent_button = button
         elif button.__class__.__name__ == 'GenerateNewResponseToFeedback' or \
                 message.__class__.__name__ == 'MessageEditFeedbackAnswer':
             current_data = await state.get_data()
-            parent_button = self.main.feedback_collection.get(current_data.get('previous_button'))
+
+            # parent_button = self.main.feedback_collection.get(current_data.get('previous_button'))
+            parent_button = await self.main.button_search_and_action_any_collections(
+                action='get', button_name=current_data.get('previous_button'))
+
         else:
             parent_button = None
 
@@ -123,14 +122,15 @@ class AnswerLogicManager:
 
         return reply_text, keyboard, next_state
 
-    async def reply_feedback_button(self, button: BaseButton, reply_text: str, update) -> str:
-        message_waiting = await self.bot.send_message(
-            chat_id=update.from_user.id, text=reply_text)
+    # async def reply_feedback_button(self, button: BaseButton, reply_text: str, update) -> str:
+        # message_waiting = await self.bot.send_message(
+        #     chat_id=update.from_user.id, text=reply_text)
 
-        reply_feedback = await self.ai.reply_feedback(button.any_data.get('text'))
-        button.any_data['answer'] = reply_feedback
-        await self.bot.delete_message(chat_id=update.from_user.id, message_id=message_waiting.message_id)
+        # reply_feedback = await self.ai.reply_feedback(button.any_data.get('text'))
+        # button.any_data['answer'] = reply_feedback
+        # await self.bot.delete_message(chat_id=update.from_user.id, message_id=message_waiting.message_id)
 
-        button.reply_text = reply_text.replace(button.default_generate_answer, '')
+        # button.reply_text = reply_text.replace(button.default_generate_answer, '')
 
-        return button.reply_text + f"<code>{button.any_data.get('answer')}</code>"
+        # return button.reply_text + f"<code>{button.any_data.get('answer')}</code>"
+        # return button.reply_textf'<code>{button.any_data.get("answer")}</code>'

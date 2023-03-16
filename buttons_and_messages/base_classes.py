@@ -1,3 +1,4 @@
+import asyncio
 from abc import ABC
 from types import FunctionType
 from typing import Any
@@ -13,7 +14,9 @@ class Base(ABC):
     ai = None  # Добавляется в loader.py
     bot = None  # Добавляется в loader.py
     wb_api = None  # Добавляется в loader.py
-    wb_parsing = None # Добавляется в loader.py
+    wb_parsing = None  # Добавляется в loader.py
+    logger = None  # Добавляется в loader.py
+
     # exception_controller = None  # Добавляется в loader.py
 
     default_bad_text = 'нет данных'
@@ -25,32 +28,9 @@ class Base(ABC):
     supplier_collection = dict()
     feedback_collection = dict()
 
-    @classmethod
-    async def button_search_and_action_any_collections(cls, action: str, button_name: str | None = None,
-                                                       instance_button: Any | None = None) -> Any | None:
-        if not button_name and not instance_button:
-            return None
-
-        if instance_button:
-            button_name = instance_button.__class__.__name__
-
-        if button_name.startswith('Supplier'):
-            collection = cls.supplier_collection
-        elif button_name.startswith('Feedback'):
-            collection = cls.feedback_collection
-        else:
-            collection = cls.button_store
-
-        if instance_button and action == 'add':
-            collection.update({button_name: instance_button})
-            button = instance_button
-        elif action == 'get':
-            button = collection.get(button_name)
-        elif action == 'pop':
-            button = collection.pop(button_name)
-        else:
-            button = None
-        return button
+    def log(self, message):
+        # self.logger.debug(f'Class: {self.__class__.__name__}:' + message)
+        pass
 
     def _set_reply_text(self) -> str | None:
         """Установка текста ответа """
@@ -66,6 +46,57 @@ class Base(ABC):
         """ Установка дочерних кнопок """
         return list()
 
+    @classmethod
+    async def get_many_buttons_from_any_collections(cls, get_buttons_list: list | tuple) -> Any | None:
+        # cls.logger.debug(f'Base: get_many_buttons_from_any_collections -> get_buttons_list: {get_buttons_list}')
+        result_buttons_list = list()
+
+        if get_buttons_list:
+            for button_name in get_buttons_list:
+                if result_button := await cls.button_search_and_action_any_collections(
+                        button_name=button_name, action='get'):
+                    result_buttons_list.append(result_button)
+
+        # cls.logger.debug(f'Base: get_many_buttons_from_any_collections -> {"OK" if result_buttons_list else "BAD"} '
+        #                  f'get_buttons_list: {get_buttons_list}, return result: {result_buttons_list}')
+        return result_buttons_list
+
+    @classmethod
+    async def button_search_and_action_any_collections(cls, action: str, button_name: str | None = None,
+                                                       instance_button: Any | None = None) -> Any | None:
+        # cls.logger.debug(f'Base: action: {action.upper()}, button_name: {button_name}, instance_button: {instance_button}')
+
+        if not button_name and not instance_button:
+            return None
+
+        if instance_button:
+            button_name = instance_button.__class__.__name__
+
+        if button_name.startswith('Supplier'):
+            collection = cls.supplier_collection
+            collection_name = 'supplier_collection'
+        elif button_name.startswith('Feedback'):
+            collection = cls.feedback_collection
+            collection_name = 'feedback_collection'
+        else:
+            collection = cls.button_store
+            collection_name = 'button_store'
+
+        # cls.logger.debug(f'Base: set collection:{collection_name.upper()} for {action.upper()} button_name: {button_name}')
+
+        if instance_button and action == 'add':
+            collection.update({button_name: instance_button})
+            button = instance_button
+        elif action == 'get':
+            button = collection.get(button_name)
+        elif action == 'pop':
+            button = collection.pop(button_name, None)
+        else:
+            button = None
+
+        # cls.logger.debug(f'Base: result:{"OK" if button else "BAD"} -> return button: {button}')
+        return button
+
     # @classmethod
     # def decorate_methods_for_exception_control(cls):
     #     """Декорирует методы _set_answer_logic во всех классах для контроля исключений вызов этого метода в __init__
@@ -75,6 +106,8 @@ class Base(ABC):
     #             method = cls.__getattribute__(cls, attr_name)
     #             if type(method) is FunctionType:
     #                 setattr(cls, attr_name, cls.exception_controller(method))
+
+
 
 
 class BaseMessage(Base):
@@ -131,8 +164,8 @@ class BaseMessage(Base):
 
 class BaseButton(Base):
     """ Логика - которая будет прописана в дочерних классах выполниться только один раз при старте программы
-    для создания объектов кнопки т.е какую-либо бизнес логику производящую динамические вычисления в процессе
-    работы программы прописывать в базовый и дочерние классы не имеет смысла """
+    динамическая логика должна быть прописана в методе _set_answer_logic. Каждая кнопка при создании автоматически
+    добавляется в коллекцию на основе префикса"""
 
     __instance = None
     __buttons_id = [0, ]
@@ -175,12 +208,17 @@ class BaseButton(Base):
             self.__update_children_and_messages()
 
             self.message_store.update(self.children_messages)
+
+            # asyncio.run(self.button_search_and_action_any_collections(action='add', instance_button=self))
             if self.__class__.__name__.startswith('Supplier'):
-                self.supplier_collection[self.callback] = self
+                # self.supplier_collection[self.callback] = self
+                self.supplier_collection[self.__class__.__name__] = self
             elif self.__class__.__name__.startswith('Feedback'):
-                self.feedback_collection[self.callback] = self
+                # self.feedback_collection[self.callback] = self
+                self.feedback_collection[self.__class__.__name__] = self
             else:
-                self.button_store[self.callback] = self
+                # self.button_store[self.callback] = self
+                self.button_store[self.__class__.__name__] = self
 
     def __str__(self):
         return f'button: {self.__class__.__name__} button_id: {self.button_id}, name: {self.name}, callback: ' \
@@ -213,7 +251,7 @@ class BaseButton(Base):
                 button.save()
 
     def _set_name(self) -> str:
-        name = 'Default: name not set -> override method _set_name in class' + self.__class__.__name__
+        name = self.__class__.__name__
         return name
 
     def _set_callback(self) -> str | None:
@@ -253,4 +291,4 @@ class BaseButton(Base):
         return button
 
     async def get_parent(self):
-        return self.button_search_and_action_any_collections(action='get', button_name=self.parent_name)
+        return await self.button_search_and_action_any_collections(action='get', button_name=self.parent_name)

@@ -1,3 +1,4 @@
+import asyncio
 import json
 from dataclasses import dataclass, field
 
@@ -48,10 +49,11 @@ class WBAPIManager:
             cls.__instance = super().__new__(cls)
         return cls.__instance
 
-    def __init__(self, dbase, rm, logger):
+    def __init__(self, dbase, rm, ai, logger):
         self.wb_data = WBData()
         self.requests_manager = rm
         self.dbase = dbase
+        self.ai = ai
         self.logger = logger
         self.sign = self.__class__.__name__ + ': '
 
@@ -156,7 +158,7 @@ class WBAPIManager:
                 # suppliers = {supplier['general']: supplier['id'] for supplier in
                 #              response_request[0]['result']['suppliers']}
 
-                suppliers = {supplier['id']: {'name': supplier['general']}
+                suppliers = {f"Supplier{supplier['id']}": {'button_name': supplier['general']}
                              for supplier in response_request[0]['result']['suppliers']}
             except KeyError as exc:
                 pass
@@ -167,32 +169,60 @@ class WBAPIManager:
             self.logger.debug(self.sign + f'ERROR get_suppliers, response: {response_request}, "exc:" {exc}')
         return suppliers
 
-    async def get_feedback_list(self, seller_token: str, supplier: dict[str, str]) -> dict[str, dict]:
+    async def get_feedback_list(self, seller_token: str, supplier: dict[str, str], update) -> dict[str, dict]:
         """Получаем список отзывов"""
         feedbacks = []
+        x_supplier_id = list(supplier.keys())[0].lstrip('Supplier')
         response_request = await self.requests_manager(
             url=self.wb_data.get_feedback_list_url,
             method='get',
-            headers={"Cookie":  f"x-supplier-id={list(supplier.keys())[0]}; WBToken={seller_token};"},
+            headers={"Cookie":  f"x-supplier-id={x_supplier_id}; WBToken={seller_token};"},
             add_headers=True
         )
 
         if response_request:
             if data := response_request.get('data'):
                 feedbacks = data.get('feedbacks')
-        result = {feedback.get('id'): {'text': feedback.get('text'), 'answer': feedback.get('answer'),
-                                       'productValuation': feedback.get('productValuation'),
-                                       'productName': feedback.get('productDetails')['productName'],
-                                       "createdDate": feedback.get('createdDate')} for feedback in feedbacks}
 
-        # print(self.sign + f'get_feedback_list -> send x-supplier-id from supplier: "{supplier.values()}" '
-        #                   f'response: {json.dumps(result, indent=4, ensure_ascii=False)}')
-        # self.dbase.save_unanswered_feedbacks(result, user_id=update.from_user.id)
+        wb_user = self.dbase.tables.wildberries.get_or_none(user_id=update.from_user.id)
+        ignored_feeds = wb_user.ignored_feedbacks
+        unanswered_feeds = wb_user.unanswered_feedbacks
+
+        result = {f"Feedback{feedback.get('id')}": {
+                        'supplier': f"Supplier{x_supplier_id}",
+                        'button_name': f"[ {feedback.get('productValuation')} ]  {feedback.get('text')[:45]}",
+                        'text': feedback.get('text'), 'answer': feedback.get('answer'),
+                        'productValuation': feedback.get('productValuation'),
+                        'productName': feedback.get('productDetails')['productName'],
+                        'createdDate': feedback.get('createdDate')
+                        } for feedback in feedbacks if not f"Feedback{feedback.get('id')}" in ignored_feeds.keys() and
+                                                       not f"Feedback{feedback.get('id')}" in unanswered_feeds.keys()}
+
+        data = [self.ai.reply_many_feedbacks(feed_name=feed_name, feedback=feed_data.get('text'))
+                for feed_name, feed_data in result.items()]
+        [result.get(feed_name).update({'answer': answer}) for feed_name, answer in await asyncio.gather(*data)]
+
+        self.logger.debug(self.sign + f'get_feedback_list supplier: "{list(supplier.values())[0]}, '
+                                      f'result num feedbacks: {len(result)}')
+        self.dbase.save_unanswered_feedbacks(unanswered_feedbacks=result, user_id=update.from_user.id)
         return result
 
-    def send_feedback(self, seller_token, x_supplier_id, feeedback_id, feeedback_answer__text):
+    async def send_feedback(self, seller_token: str, x_supplier_id: str, feedback_id: str,
+                            feedback_answer__text: str, update):
+
         """Отправляем ответ на отзыв"""
-        pass
+        response_request = await self.requests_manager(
+            url=self.wb_data.send_answer_feedback,
+            method='patch',
+            headers={"Cookie": f"x-supplier-id={x_supplier_id}; WBToken={seller_token};"},
+            data={"id": feedback_id, "text": feedback_answer__text},
+            add_headers=True
+        )
+
+        # {'data': None, 'error': False, 'errorText': '', 'additionalErrors': None}
+
+        if response_request and not response_request.get('error'):
+            return True
 
 
 if __name__ == '__main__':

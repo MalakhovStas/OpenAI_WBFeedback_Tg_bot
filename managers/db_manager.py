@@ -240,5 +240,9 @@ class DBManager:
     def save_unanswered_feedbacks(self, unanswered_feedbacks: dict, user_id):
         wb_user = self.tables.wildberries.get_or_none(user_id=user_id)
         if wb_user:
-            wb_user.unanswered_feedbacks = {**wb_user.unanswered_feedbacks, **unanswered_feedbacks}
+            feedback_in_db = wb_user.unanswered_feedbacks
+            if feedback_in_db:
+                wb_user.unanswered_feedbacks = {**feedback_in_db, **unanswered_feedbacks}
+            else:
+                wb_user.unanswered_feedbacks = unanswered_feedbacks
             wb_user.save()
