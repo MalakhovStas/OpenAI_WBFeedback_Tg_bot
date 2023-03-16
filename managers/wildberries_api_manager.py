@@ -28,15 +28,22 @@ class WBData:
     get_suppliers_url: str = 'https://seller.wildberries.ru/ns/suppliers/suppliers-portal-core/suppliers'
 
     """Получаем список отзывов параметр take - количество отзывов"""
-    get_feedback_list_url: str = "https://seller.wildberries.ru/ns/api/suppliers-portal-feedbacks-questions/api/v1/" \
-                                 "feedbacks?hasSupplierComplaint&isAnswered=false&metaDataKeyMustNot=norating&nmId=&" \
-                                 "order=dateDesc&skip=0&take=10"""
+    # get_feedback_list_url: str = "https://seller.wildberries.ru/ns/api/suppliers-portal-feedbacks-questions/api/v1/" \
+    #                              "feedbacks?hasSupplierComplaint&isAnswered=false&metaDataKeyMustNot=norating&nmId=&" \
+    #                              "order=dateDesc&skip=0&take=5"""
     """Отправляем ответ на отзыв"""
     send_answer_feedback: str = 'https://seller.wildberries.ru/ns/api/suppliers-portal-feedbacks-questions' \
                                 '/api/v1/feedbacks'
 
     get_suppliers_data: list = field(default_factory=lambda: [
         {"method": "getUserSuppliers", "params": {}, "id": "json-rpc_4", "jsonrpc": "2.0"}])
+
+
+    def get_feedback_list_url(self, take: int | str | None = None):
+        """Получаем список отзывов параметр take - количество отзывов"""
+        return "https://seller.wildberries.ru/ns/api/suppliers-portal-feedbacks-questions/api/v1/" \
+               "feedbacks?hasSupplierComplaint&isAnswered=false&metaDataKeyMustNot=norating&nmId=&" \
+               f"order=dateDesc&skip=0&take={take if take else 5}"""
 
 
 class WBAPIManager:
@@ -169,12 +176,13 @@ class WBAPIManager:
             self.logger.debug(self.sign + f'ERROR get_suppliers, response: {response_request}, "exc:" {exc}')
         return suppliers
 
-    async def get_feedback_list(self, seller_token: str, supplier: dict[str, str], update) -> dict[str, dict]:
+    async def get_feedback_list(self, seller_token: str, supplier: dict[str, str],
+                                update, take: int | None = None) -> dict[str, dict]:
         """Получаем список отзывов"""
         feedbacks = []
         x_supplier_id = list(supplier.keys())[0].lstrip('Supplier')
         response_request = await self.requests_manager(
-            url=self.wb_data.get_feedback_list_url,
+            url=self.wb_data.get_feedback_list_url(take=take),
             method='get',
             headers={"Cookie":  f"x-supplier-id={x_supplier_id}; WBToken={seller_token};"},
             add_headers=True

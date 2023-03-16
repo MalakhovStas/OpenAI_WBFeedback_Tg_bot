@@ -99,7 +99,7 @@ class AboutBot(BaseButton):
                "\n\nНаш YouTube канал с кучей полезной информации  - https://www.youtube.com/@marpla_ru"
 
 
-class Feedback(BaseButton):
+class SupportButton(BaseButton):
 
     def _set_name(self) -> str:
         return '🆘 Поддержка'
@@ -127,5 +127,5 @@ class MainMenu(BaseButton):
                 AnswerManagement(parent_name=self.__class__.__name__),
                 CreateResponseManually(parent_name=self.__class__.__name__),
                 AboutBot(parent_name=self.__class__.__name__),
-                Feedback(parent_name=self.__class__.__name__)]
+                SupportButton(parent_name=self.__class__.__name__)]
 

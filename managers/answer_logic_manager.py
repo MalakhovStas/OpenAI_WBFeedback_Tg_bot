@@ -24,6 +24,14 @@ class AnswerLogicManager:
 
     async def create_keyboard(self, buttons: list | None, insert: bool = False,
                               main_menu: bool = False, parent_button: BaseButton | None = None) -> InlineKeyboardMarkup:
+
+        # if buttons == self.main.children_buttons:
+        #     main_menu = False
+        #     insert = True
+        #
+        # if not parent_button or parent_button == self.main:
+        #     main_menu = True
+
         keyboard = InlineKeyboardMarkup()
         if buttons:
             for index, button in enumerate(buttons, 1):
@@ -45,6 +53,11 @@ class AnswerLogicManager:
                         if insert and not main_menu else keyboard.add(InlineKeyboardButton(
                             text=button.name, callback_data=button.callback, url=button.url))
 
+        # if buttons != self.main.children_buttons:
+        #     back_inline_button = InlineKeyboardButton(text='◀ Назад', callback_data='GoToBack')
+        #     keyboard.add(back_inline_button)  # if main_menu else keyboard.insert(back_inline_button)
+        #     insert = True
+        #
         if main_menu:
             main_inline_button = InlineKeyboardButton(text=self.main.name, callback_data=self.main.callback)
             keyboard.insert(main_inline_button) if insert else keyboard.add(main_inline_button)
@@ -121,16 +134,3 @@ class AnswerLogicManager:
             buttons=buttons, insert=insert, main_menu=main_menu, parent_button=parent_button)
 
         return reply_text, keyboard, next_state
-
-    # async def reply_feedback_button(self, button: BaseButton, reply_text: str, update) -> str:
-        # message_waiting = await self.bot.send_message(
-        #     chat_id=update.from_user.id, text=reply_text)
-
-        # reply_feedback = await self.ai.reply_feedback(button.any_data.get('text'))
-        # button.any_data['answer'] = reply_feedback
-        # await self.bot.delete_message(chat_id=update.from_user.id, message_id=message_waiting.message_id)
-
-        # button.reply_text = reply_text.replace(button.default_generate_answer, '')
-
-        # return button.reply_text + f"<code>{button.any_data.get('answer')}</code>"
-        # return button.reply_textf'<code>{button.any_data.get("answer")}</code>'

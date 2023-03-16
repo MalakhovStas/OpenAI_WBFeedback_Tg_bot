@@ -276,8 +276,8 @@ class Utils(Base):
             self.logger.debug(f'Utils: get suppliers buttons from collections: {suppliers}')
 
             if wb_user_suppliers and not suppliers:
-                 suppliers = await self.utils_get_or_create_buttons(
-                     collection=wb_user_suppliers, class_type='supplier', update=update)
+                 suppliers = await self.utils_get_or_create_buttons(collection=wb_user_suppliers,
+                                                                    class_type='supplier', update=update)
                  self.logger.debug(f'Utils: create suppliers buttons: {suppliers}')
 
         else:
@@ -293,29 +293,25 @@ class Utils(Base):
 
         return suppliers
 
-    async def feedback_buttons_logic(self, supplier: dict, update):
-        __buttons = list()
+    async def feedback_buttons_logic(self, supplier: dict, update) -> list:
         supplier_name_key = list(supplier.keys())[0]
+
         with self.dbase:
             wb_user = self.tables.wildberries.get_or_none(user_id=update.from_user.id)
 
         if feedbacks := wb_user.unanswered_feedbacks:
+            """Выбираем неотвеченные отзывы конкретного supplier из БД"""
+            feedbacks = {feedback_id: feedback_data for feedback_id, feedback_data in feedbacks.items()
+                         if feedback_data.get('supplier') == supplier_name_key}
+        else:
+            """Если в БД нет отзывов делаем запрос к WB API"""
+            feedbacks = await self.wb_api.get_feedback_list(seller_token=wb_user.sellerToken,
+                                                            supplier=supplier, update=update, take=5)
 
-            supplier_feedbacks = {feedback_id: feedback_data for feedback_id, feedback_data in feedbacks.items()
-                                  if feedback_data.get('supplier') == supplier_name_key}
+            """Возвращаем список объектов BaseButton кнопок-отзывов"""
+        return await self.utils_get_or_create_buttons(
+            collection=feedbacks, class_type='feedback', update=update, supplier_name_key=supplier_name_key)
 
-            __buttons = await self.utils_get_or_create_buttons(supplier_feedbacks, class_type='feedback',
-                                                               update=update, supplier_name_key=supplier_name_key)
-
-        elif feedbacks := await self.wb_api.get_feedback_list(seller_token=wb_user.sellerToken,
-                                                              supplier=supplier, update=update):
-            result = dict()
-            for feedback_id, feedback_data in feedbacks.items():
-                result.update({feedback_id: feedback_data})
-
-            __buttons = await self.utils_get_or_create_buttons(result, class_type='feedback', update=update,
-                                                               supplier_name_key=supplier_name_key)
-        return __buttons
 
     async def create_button(self, data: dict, class_type: str, update, supplier_name_key: str | None = None):
         """Рекурсивное создание кнопок кабинетов и отзывов"""
@@ -355,10 +351,14 @@ class Utils(Base):
             raise ValueError('class_type должен быть Supplier или Feedback')
 
         __buttons = list()
+        # print('COLLECTION:', collection.keys())
 
         for object_id, object_data in collection.items():
+            """Проверяем существует ли объект-кнопка BaseButton В какой-либо коллекции"""
             button = await self.button_search_and_action_any_collections(action='get', button_name=object_id)
+
             if not button:
+                """Если нет создаем новый объект"""
                 button = await self.create_button(data={object_id: object_data},
                                                   class_type=class_type, update=update,
                                                   supplier_name_key=supplier_name_key)
@@ -420,7 +420,7 @@ class WildberriesCabinet(BaseButton, Utils):
 
         else:
             suppliers = await self.suppliers_buttons_logic(update=update, state=state)
-            suppliers.append(GoToBack(new=False))
+            # suppliers.append(GoToBack(new=False))
             self.children_buttons = suppliers
 
         return reply_text, next_state
@@ -540,7 +540,8 @@ class SetUpNotificationTimes(BaseButton):
                 DayFrom9To18Hours(parent_name=self.__class__.__name__),
                 FullDayFrom9To21Hours(parent_name=self.__class__.__name__),
                 EnterYourself(parent_name=self.__class__.__name__),
-                GoToBack(new=False)]
+                # GoToBack(new=False)
+                ]
 
 
 class MessageEnterSignatureForSignatureToTheAnswerButton(BaseMessage):
