@@ -50,7 +50,7 @@ class GoToBack(BaseButton):
 
 class PostFeedback(BaseButton):
     def _set_name(self) -> str:
-        return '📨 Опубликовать'
+        return '📩 Опубликовать'
 
     async def _set_answer_logic(self, update, state):
         data = await state.get_data()
@@ -113,7 +113,7 @@ class EditFeedback(BaseButton):
 
 class GenerateNewResponseToFeedback(BaseButton):
     def _set_name(self) -> str:
-        return '🔄 Сгенерировать новый ответ'
+        return '✍ Сгенерировать новый ответ'
 
     async def _set_answer_logic(self, update: CallbackQuery, state: FSMContext):
         await self.bot.delete_message(chat_id=update.from_user.id, message_id=update.message.message_id)
@@ -156,16 +156,13 @@ class DontReplyFeedback(BaseButton):
 
         supplier_button.children_buttons.remove(removed_button)
         self.children_buttons = supplier_button.children_buttons
+        await self.change_name_button(supplier_button, len(self.children_buttons)-1)
 
         with self.dbase:
             wb_user = self.tables.wildberries.get_or_none(user_id=update.from_user.id)
             rm_feed = wb_user.unanswered_feedbacks.pop(removed_button.__class__.__name__, None)
             wb_user.ignored_feedbacks[removed_button.__class__.__name__] = rm_feed
             wb_user.save()
-
-        was = re.search(r'< \d+ >', supplier_button.name).group(0)
-        will_be = f"< {int(was.strip('<> ')) - 1} >"
-        supplier_button.name = supplier_button.name.replace(was, will_be)
 
         return supplier_button.reply_text, supplier_button.next_state
 
@@ -293,8 +290,8 @@ class Utils(Base):
 
         return suppliers
 
-    async def feedback_buttons_logic(self, supplier: dict, update) -> list:
-        supplier_name_key = list(supplier.keys())[0]
+    async def feedback_buttons_logic(self, supplier: dict | str, update) -> list:
+        supplier_name_key = list(supplier.keys())[0] if isinstance(supplier, dict) else supplier
 
         with self.dbase:
             wb_user = self.tables.wildberries.get_or_none(user_id=update.from_user.id)
@@ -306,25 +303,32 @@ class Utils(Base):
         else:
             """Если в БД нет отзывов делаем запрос к WB API"""
             msg = await self.bot.send_message(chat_id=update.from_user.id, text=self.default_download_information)
-            feedbacks = await self.wb_api.get_feedback_list(seller_token=wb_user.sellerToken,
-                                                            supplier=supplier, update=update, take=WB_TAKE)
+            feedbacks = await self.wb_api.get_feedback_list(
+                seller_token=wb_user.sellerToken, supplier=supplier, update=update)
             await self.bot.delete_message(chat_id=update.from_user.id, message_id=msg.message_id)
-            """Возвращаем список объектов BaseButton кнопок-отзывов"""
+
+        """Возвращаем список объектов BaseButton кнопок-отзывов"""
         return await self.utils_get_or_create_buttons(
             collection=feedbacks, class_type='feedback', update=update, supplier_name_key=supplier_name_key)
 
     async def create_button(self, data: dict, class_type: str, update, supplier_name_key: str | None = None):
         """Рекурсивное создание кнопок кабинетов и отзывов"""
         button = None
+        reply_text = '<b>Выберите отзыв:</b>'
 
         for object_id, object_data in data.items():
-            reply_text = '<b>Выберите отзыв:</b>' if class_type == 'Supplier' else \
-                         f'<b>Товар:</b> {object_data.get("productName")}\n' \
-                         f'<b>Дата:</b> {object_data.get("createdDate")[:16].replace("T", " ")}\n' \
-                         f'<b>Оценка:</b> {object_data.get("productValuation")}\n' \
-                         f'<b>Текст отзыва:</b> {object_data.get("text")}\n\n' \
-                         f'<b>Ответ:</b>\n\n<code>{object_data.get("answer")}</code>'
-                         # f'<b>Ответ:</b>\n\n' + self.default_generate_answer
+            self.logger.debug(f'Utils: create_button: {object_id}, supplier: {supplier_name_key}')
+            if object_id.startswith('Feedback'):
+                dt, tm = object_data.get("createdDate")[:16].split("T")
+                dt_tm = ' '.join(('-'.join(dt.split('-')[::-1]), tm))
+
+                reply_text = '<b>Выберите отзыв:</b>' if class_type == 'Supplier' else \
+                             f'<b>Товар:</b> {object_data.get("productName")}\n' \
+                             f'<b>Дата:</b> {dt_tm}\n' \
+                             f'<b>Оценка:</b> {object_data.get("productValuation")}\n' \
+                             f'<b>Текст отзыва:</b> {object_data.get("text")}\n\n' \
+                             f'<b>Ответ:</b>\n\n<code>{object_data.get("answer")}</code>'
+                             # f'<b>Ответ:</b>\n\n' + self.default_generate_answer
 
             button = type(object_id, (BaseButton, ), {})(
                 name=object_data.get('button_name'),
@@ -342,6 +346,8 @@ class Utils(Base):
             if isinstance(button.name, str) and class_type == 'Supplier':
                 button.name += f' < {len(children)-1 if children else 0} >'
 
+            button.reply_text = '📭 <b>Отзывов пока нет</b>' if len(children)-1 <= 0 else reply_text
+
         return button
 
     async def utils_get_or_create_buttons(self, collection: dict, class_type: str,
@@ -351,7 +357,6 @@ class Utils(Base):
             raise ValueError('class_type должен быть Supplier или Feedback')
 
         __buttons = list()
-        # print('COLLECTION:', collection.keys())
 
         for object_id, object_data in collection.items():
             """Проверяем существует ли объект-кнопка BaseButton В какой-либо коллекции"""
@@ -367,6 +372,50 @@ class Utils(Base):
         __buttons.append(GoToBack(new=False))
 
         return __buttons
+
+
+class UpdateListFeedbacks(BaseButton, Utils):
+
+    def _set_name(self) -> str:
+        return '🌐 Обновить информацию'
+
+    def _set_reply_text(self) -> str | None:
+        return '<b>Выберите отзыв:</b>'
+
+    async def _set_answer_logic(self, update: CallbackQuery, state: FSMContext):
+        data = await state.get_data()
+        supplier_name_key = data.get('previous_button')
+
+        with self.dbase:
+            wb_user = self.tables.wildberries.get_or_none(user_id=update.from_user.id)
+
+        msg = await self.bot.send_message(chat_id=update.from_user.id, text=self.default_download_information)
+
+        feedbacks = await self.wb_api.get_feedback_list(
+            seller_token=wb_user.sellerToken, supplier=supplier_name_key, update=update)
+        await self.bot.delete_message(chat_id=update.from_user.id, message_id=msg.message_id)
+
+
+        # button = await self.button_search_and_action_any_collections(action='get', button_name=supplier_name_key)
+        # await self.feedback_buttons_logic(supplier=supplier_name_key, update=update)
+
+        buttons = await self.utils_get_or_create_buttons(
+            collection=feedbacks, class_type='feedback', update=update, supplier_name_key=supplier_name_key)
+
+        # print(supplier_name_key)
+        # print(buttons)
+        # print(any(button.__class__.__name__.startswith('Feedback') for button in buttons))
+        if not any(button.__class__.__name__.startswith('Feedback') for button in buttons):
+            buttons = await self.feedback_buttons_logic(supplier=supplier_name_key, update=update)
+
+        supplier_button = await self.button_search_and_action_any_collections(action='get', button_name=supplier_name_key)
+        supplier_button.children_buttons = buttons
+        await self.change_name_button(supplier_button, len(buttons)-1)
+
+        self.children_buttons = buttons
+        # self.children_buttons.append(self)
+
+        return self.reply_text, self.next_state
 
 
 class MessageAfterUserEntersPhone(BaseMessage, Utils):
@@ -405,6 +454,8 @@ class WildberriesCabinet(BaseButton, Utils):
 
     def _set_children(self) -> list:
         return [GoToBack(parent_id=self.button_id, parent_name=self.__class__.__name__)]
+        # return [UpdateListFeedbacks(parent_id=self.button_id, parent_name=self.__class__.__name__),
+        #         GoToBack(parent_id=self.button_id, parent_name=self.__class__.__name__)]
 
     def _set_messages(self) -> dict:
         messages = [MessageAfterUserEntersPhone(self.button_id, parent_name=self.__class__.__name__),
@@ -602,3 +653,6 @@ class SignatureToTheAnswer(BaseButton, Utils):
             reply_text, next_state = result
 
         return reply_text, next_state
+
+create_buttons = [UpdateListFeedbacks()]
+

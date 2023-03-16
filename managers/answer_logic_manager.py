@@ -60,6 +60,15 @@ class AnswerLogicManager:
         #     keyboard.add(back_inline_button)  # if main_menu else keyboard.insert(back_inline_button)
         #     insert = True
         #
+
+        # print('create_keyboard - parent_button:', parent_button)
+        # print('create_keyboard - buttons:', buttons)
+        if any(button.__class__.__name__.startswith('Feedback') for button in buttons):
+        # if parent_button.__class__.__name__.startswith('Supplier'):
+            main_inline_button = InlineKeyboardButton(
+                text='🌐 Обновить информацию', callback_data='UpdateListFeedbacks')
+            keyboard.insert(main_inline_button)
+
         if main_menu:
             main_inline_button = InlineKeyboardButton(text=self.main.name, callback_data=self.main.callback)
             keyboard.insert(main_inline_button) if insert else keyboard.add(main_inline_button)
@@ -121,6 +130,7 @@ class AnswerLogicManager:
 
         if button.__class__.__name__.startswith('Feedback'):
             parent_button = button
+
         elif button.__class__.__name__ == 'GenerateNewResponseToFeedback' or \
                 message.__class__.__name__ == 'MessageEditFeedbackAnswer':
             current_data = await state.get_data()

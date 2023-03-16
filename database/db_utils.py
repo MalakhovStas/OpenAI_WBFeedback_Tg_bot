@@ -107,29 +107,29 @@ class Wildberries(Model):
         db_table = 'wildberries'
 
 
-class Supplier(Model):
-    user_id = ForeignKeyField(Users, to_field='user_id', related_name='suppliers', on_delete='CASCADE')
-    x_supplier_id = CharField(primary_key=True, unique=True)
-    name = CharField()
-    callback = CharField(null=True)
-
-    class Meta:
-        database = db
-        order_by = 'user_id'
-        db_table = 'suppliers'
-
-
-class Feedback(Model):
-    user_id = ForeignKeyField(Users, to_field='user_id', related_name='suppliers', on_delete='CASCADE')
-    x_supplier_id = ForeignKeyField(Supplier, to_field='x_supplier_id', related_name='feedbacks', on_delete='CASCADE')
-    feedback_id = CharField(primary_key=True, unique=True)
-    generate_answer = CharField(null=True)
-    ignore_feedback = BooleanField(null=False, default=False)
-
-    class Meta:
-        database = db
-        order_by = 'user_id'
-        db_table = 'feedbacks'
+# class Supplier(Model):
+#     user_id = ForeignKeyField(Users, to_field='user_id', related_name='suppliers', on_delete='CASCADE')
+#     x_supplier_id = CharField(primary_key=True, unique=True)
+#     name = CharField()
+#     callback = CharField(null=True)
+#
+#     class Meta:
+#         database = db
+#         order_by = 'user_id'
+#         db_table = 'suppliers'
+#
+#
+# class Feedback(Model):
+#     user_id = ForeignKeyField(Users, to_field='user_id', related_name='suppliers', on_delete='CASCADE')
+#     x_supplier_id = ForeignKeyField(Supplier, to_field='x_supplier_id', related_name='feedbacks', on_delete='CASCADE')
+#     feedback_id = CharField(primary_key=True, unique=True)
+#     generate_answer = CharField(null=True)
+#     ignore_feedback = BooleanField(null=False, default=False)
+#
+#     class Meta:
+#         database = db
+#         order_by = 'user_id'
+#         db_table = 'feedbacks'
 
 
 class Tables:
@@ -137,8 +137,8 @@ class Tables:
     buttons = Button
     messages = Message
     wildberries = Wildberries
-    suppliers = Supplier
-    feedbacks = Feedback
+    # suppliers = Supplier
+    # feedbacks = Feedback
 
     @classmethod
     def all_tables(cls):

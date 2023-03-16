@@ -198,23 +198,27 @@ class DBManager:
     def save_phone_number_and_sms_token(self, phone_number, sms_token, user_id):
         wb_user = self.tables.wildberries.get_or_none(user_id=user_id)
         if wb_user:
-            wb_user.phone_number = phone_number
+            wb_user.phone = phone_number
             wb_user.sms_token = sms_token
             wb_user.save()
 
     def save_seller_token(self, seller_token, user_id):
+        self.logger.info(self.sign + f'save sellerToken: {seller_token}')
+
         wb_user = self.tables.wildberries.get_or_none(user_id=user_id)
         if wb_user:
-            wb_user.seller_token = seller_token
+            wb_user.sellerToken = seller_token
             wb_user.save()
 
     def save_passport_token(self, passport_token, user_id):
+        self.logger.info(self.sign + f'save passportToken: {passport_token}')
         wb_user = self.tables.wildberries.get_or_none(user_id=user_id)
         if wb_user:
-            wb_user.passport_token = passport_token
+            wb_user.passportToken = passport_token
             wb_user.save()
 
     def save_wb_user_id(self, wb_user_id, user_id):
+        self.logger.info(self.sign + f'save wb_user_id: {wb_user_id}')
         wb_user = self.tables.wildberries.get_or_none(user_id=user_id)
         if wb_user:
             if not wb_user.WB_user_id or wb_user.WB_user_id != wb_user_id:
@@ -222,6 +226,7 @@ class DBManager:
                 wb_user.save()
 
     def save_suppliers(self, suppliers: dict, user_id):
+        self.logger.info(self.sign + f'save suppliers: {suppliers}')
         wb_user = self.tables.wildberries.get_or_none(user_id=user_id)
         if wb_user:
             wb_user.suppliers = suppliers
@@ -238,10 +243,12 @@ class DBManager:
         # pass
 
     def save_unanswered_feedbacks(self, unanswered_feedbacks: dict, user_id):
+        """ Сохранение отзывов в БД -> wildberries -> unanswered_feedbacks """
+        self.logger.info(self.sign + f'save unanswered_feedbacks: {unanswered_feedbacks}')
         wb_user = self.tables.wildberries.get_or_none(user_id=user_id)
         if wb_user:
             feedback_in_db = wb_user.unanswered_feedbacks
-            if feedback_in_db:
+            if feedback_in_db and isinstance(feedback_in_db, dict):
                 wb_user.unanswered_feedbacks = {**feedback_in_db, **unanswered_feedbacks}
             else:
                 wb_user.unanswered_feedbacks = unanswered_feedbacks

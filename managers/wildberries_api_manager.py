@@ -1,7 +1,7 @@
 import asyncio
 import json
 from dataclasses import dataclass, field
-
+from config import WB_TAKE
 
 @dataclass
 class WBData:
@@ -179,13 +179,29 @@ class WBAPIManager:
             self.logger.debug(self.sign + f'ERROR get_suppliers, response: {response_request}, "exc:" {exc}')
         return suppliers
 
-    async def get_feedback_list(self, seller_token: str, supplier: dict[str, str],
+    async def get_feedback_list(self, seller_token: str, supplier: dict[str, str] | str,
                                 update, take: int | None = None) -> dict[str, dict]:
-        """Получаем список отзывов"""
-        feedbacks = []
-        x_supplier_id = list(supplier.keys())[0].lstrip('Supplier')
+        """ Получаем список неотвеченных отзывов от WB в количестве(config -> WB_TAKE + len(ignored_feedbacks))
+            выбираем только те, которые не в списке игнорируемых отзывов в БД -> таблица wildberries ->
+            ignored_feedbacks и неотвеченных отзывов -> unanswered_feedback. Затем асинхронно генерируем
+            ответ на отзывы с помощью OpenAiManager, результат возвращаем и сохраняем в
+            БД -> wildberries -> unanswered_feedbacks и """
+
+        feedbacks = list()
+        take = WB_TAKE if not take else take
+        if isinstance(supplier, dict):
+            x_supplier_id = list(supplier.keys())[0].lstrip('Supplier')
+            supplier_name = list(supplier.values())[0]
+        else:
+            x_supplier_id = supplier.lstrip('Supplier')
+            supplier_name = supplier
+
+        wb_user = self.dbase.tables.wildberries.get_or_none(user_id=update.from_user.id)
+        ignored_feeds = wb_user.ignored_feedbacks
+        unanswered_feeds = wb_user.unanswered_feedbacks
+
         response_request = await self.requests_manager(
-            url=self.wb_data.get_feedback_list_url(take=take),
+            url=self.wb_data.get_feedback_list_url(take=len(ignored_feeds) + take),
             method='get',
             headers={"Cookie":  f"x-supplier-id={x_supplier_id}; WBToken={seller_token};"},
             add_headers=True
@@ -194,10 +210,6 @@ class WBAPIManager:
         if response_request:
             if data := response_request.get('data'):
                 feedbacks = data.get('feedbacks')
-
-        wb_user = self.dbase.tables.wildberries.get_or_none(user_id=update.from_user.id)
-        ignored_feeds = wb_user.ignored_feedbacks
-        unanswered_feeds = wb_user.unanswered_feedbacks
 
         result = {f"Feedback{feedback.get('id')}": {
                         'supplier': f"Supplier{x_supplier_id}",
@@ -211,9 +223,9 @@ class WBAPIManager:
         data = [self.ai.reply_many_feedbacks(feed_name=feed_name, feedback=feed_data.get('text')) for feed_name, feed_data in result.items()]
         list_result = await asyncio.gather(*data)
         await asyncio.sleep(0.1)
-        update_result = [result.get(feed_name).update({'answer': answer}) for feed_name, answer in list_result]
+        [result.get(feed_name).update({'answer': answer}) for feed_name, answer in list_result]
 
-        self.logger.debug(self.sign + f'get_feedback_list supplier: "{list(supplier.values())[0]}, '
+        self.logger.debug(self.sign + f'get_feedback_list supplier: "{supplier_name}, '
                                       f'result num feedbacks: {len(result)}')
         self.dbase.save_unanswered_feedbacks(unanswered_feedbacks=result, user_id=update.from_user.id)
         return result

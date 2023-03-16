@@ -18,7 +18,6 @@ async def delete_message(chat_id, message_id):
 async def message_any_message(message: Message, state: FSMContext) -> None:
     """ Обработчик сообщений """
     text, keyboard, next_state = await alm.get_reply(update=message, state=state)
-
     sent_message = await bot.send_message(chat_id=message.from_user.id, text=text,
                                           reply_markup=keyboard, disable_web_page_preview=True)
     await state.update_data(last_handler_sent_message_id=sent_message.message_id,
@@ -31,7 +30,6 @@ async def message_any_message(message: Message, state: FSMContext) -> None:
 async def get_call(call: CallbackQuery, state: FSMContext) -> None:
     """ Обработчик обратного вызова """
     text, keyboard, next_state = await alm.get_reply(update=call, state=state)
-
     await delete_message(chat_id=call.from_user.id, message_id=call.message.message_id)
     sent_message = await bot.send_message(chat_id=call.from_user.id, text=text,
                                           reply_markup=keyboard, disable_web_page_preview=True)

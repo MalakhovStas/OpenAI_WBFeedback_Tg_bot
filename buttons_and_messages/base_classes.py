@@ -1,4 +1,5 @@
 import asyncio
+import re
 from abc import ABC
 from types import FunctionType
 from typing import Any
@@ -98,6 +99,13 @@ class Base(ABC):
         # cls.logger.debug(f'Base: result:{"OK" if button else "BAD"} -> return button: {button}')
         return button
 
+    @staticmethod
+    async def change_name_button(button, num):
+        was = re.search(r'< \d+ >', button.name).group(0)
+        will_be = f"< {num} >"
+        button.name = button.name.replace(was, will_be)
+        return button
+
     # @classmethod
     # def decorate_methods_for_exception_control(cls):
     #     """Декорирует методы _set_answer_logic во всех классах для контроля исключений вызов этого метода в __init__
@@ -109,13 +117,10 @@ class Base(ABC):
     #                 setattr(cls, attr_name, cls.exception_controller(method))
 
 
-
-
 class BaseMessage(Base):
-    #TODO неверный коммент
     """ Логика - которая будет прописана в дочерних классах выполниться только один раз при старте программы
-    для создания объектов сообщений т.е какую-либо бизнес логику производящую динамические вычисления в процессе
-    работы программы прописывать в базовый и дочерние классы не имеет смысла """
+    динамическая логика должна быть прописана в методе _set_answer_logic. Каждая кнопка при создании автоматически
+    добавляется в коллекцию на основе префикса"""
 
     __instance = None
 
@@ -128,10 +133,7 @@ class BaseMessage(Base):
 
     def __init__(self, button: Any | int | None = None, state_or_key: str | None = None, reply_text: str | None = None,
                  children_buttons: list | None = None, parent_name: str | None = None):
-        # if self.__class__.__name__ == BaseMessage.__name__:
-        #     BaseMessage.ai = ai
 
-        # if button and self.__class__ != BaseMessage.__name__:
         if self.__class__ != BaseMessage.__name__:
             self.button_id = button.button_id if (button and isinstance(button, BaseButton)) else button
             self.parent_name = parent_name
@@ -184,13 +186,6 @@ class BaseButton(Base):
                  reply_text: str | None = None, children: list | None = None, messages: dict | None = None,
                  any_data: dict | None = None, next_state: str | None = None):
 
-        # has_method = hasattr(self.__class__, '_set_answer_logic')
-        # print(self.__class__.__name__, f'Has method -> _set_answer_logic: {has_method}' if has_method else '', )
-        # print(self.buttons.get('go_to_back'))
-        # if self.__class__.__name__ == BaseButton.__name__:
-        #     BaseButton.ai = ai
-        # print(self.__class__.__name__)
-
         if new and self.__class__ != BaseButton.__name__:
             self.button_id = self.__set_button_id()
             self.name = self._set_name() if not name else name
@@ -210,15 +205,11 @@ class BaseButton(Base):
 
             self.message_store.update(self.children_messages)
 
-            # asyncio.run(self.button_search_and_action_any_collections(action='add', instance_button=self))
             if self.__class__.__name__.startswith('Supplier'):
-                # self.supplier_collection[self.callback] = self
                 self.supplier_collection[self.__class__.__name__] = self
             elif self.__class__.__name__.startswith('Feedback'):
-                # self.feedback_collection[self.callback] = self
                 self.feedback_collection[self.__class__.__name__] = self
             else:
-                # self.button_store[self.callback] = self
                 self.button_store[self.__class__.__name__] = self
 
     def __str__(self):
@@ -252,22 +243,13 @@ class BaseButton(Base):
                 button.save()
 
     def _set_name(self) -> str:
-        name = self.__class__.__name__
+        name = 'Button:' + self.__class__.__name__
         return name
 
     def _set_callback(self) -> str | None:
         if self.url:
             return None
         return self.__class__.__name__
-        # callback = []
-        # class_name = self.__class__.__name__
-        # for index, sym in enumerate(list(class_name)):
-        #     if index == 0:
-        #         sym = sym.lower()
-        #     elif sym.isupper():
-        #         sym = '_' + sym
-        #     callback.append(sym)
-        # return ''.join(callback).lower()
 
     def _set_url(self) -> str | None:
         return None
