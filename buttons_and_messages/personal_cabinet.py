@@ -6,7 +6,7 @@ from aiogram.types import CallbackQuery, Message
 from buttons_and_messages.time_zones import MoscowUtcUp3, KaliningradUtcUp2, SamaraUtcUp4, EkaterinburgAndAktauUtcUp5, \
     OmskAndNurSultanUtcUp6, KrasnoyarskUtcUp7, IrkutskUtcUp8, YakutskUtcUp9, VladivostokUtcUp10, MagadanUtcUp11, \
     KamchatkaUtcUp12
-from config import BOT_NIKNAME
+from config import BOT_NIKNAME, WB_TAKE
 from utils.states import FSMPersonalCabinetStates, FSMUtilsStates
 from .base_classes import Base, BaseButton, BaseMessage
 
@@ -305,13 +305,13 @@ class Utils(Base):
                          if feedback_data.get('supplier') == supplier_name_key}
         else:
             """Если в БД нет отзывов делаем запрос к WB API"""
+            msg = await self.bot.send_message(chat_id=update.from_user.id, text=self.default_download_information)
             feedbacks = await self.wb_api.get_feedback_list(seller_token=wb_user.sellerToken,
-                                                            supplier=supplier, update=update, take=5)
-
+                                                            supplier=supplier, update=update, take=WB_TAKE)
+            await self.bot.delete_message(chat_id=update.from_user.id, message_id=msg.message_id)
             """Возвращаем список объектов BaseButton кнопок-отзывов"""
         return await self.utils_get_or_create_buttons(
             collection=feedbacks, class_type='feedback', update=update, supplier_name_key=supplier_name_key)
-
 
     async def create_button(self, data: dict, class_type: str, update, supplier_name_key: str | None = None):
         """Рекурсивное создание кнопок кабинетов и отзывов"""

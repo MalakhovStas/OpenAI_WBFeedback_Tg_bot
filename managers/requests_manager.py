@@ -76,6 +76,7 @@ class RequestsManager:
         result = None
         proxi = await self.get_proxi()
         data = json.dumps(data) if isinstance(data, (dict, list)) else None
+
         if proxi:
             connector = ProxyConnector(
                 proxy_type=self.proxi_types.get(TYPE_PROXI.lower()),
@@ -96,7 +97,7 @@ class RequestsManager:
                                 result = {'response': await response.text()}
                             else:
                                 result = await response.json()
-                    if method == 'patch':
+                    elif method == 'patch':
                         async with session.patch(url, data=data, ssl=False, timeout=20) as response:
                             if response.content_type == 'text/html':
                                 result = {'response': await response.text()}
@@ -117,7 +118,6 @@ class RequestsManager:
                     step += 1
                 else:
                     break
-
         return result
 
     async def aio_request_gather(self, list_requests, headers, method: str = 'get', data: dict | None = None):

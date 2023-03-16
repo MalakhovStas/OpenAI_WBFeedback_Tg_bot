@@ -9,11 +9,13 @@ class WBData:
     """wb api: "https://seller.wildberries.ru/passport/api/v2/auth/login_by_phone/"""
     """{"phone": "111111111", "is_terms_and_conditions_accepted": True}"""
     send_phone_url: str = 'http://65.21.229.152:1488/auth/login-by-phone'
+    # send_phone_url: str = "https://seller.wildberries.ru/passport/api/v2/auth/login_by_phone/"
 
     """Отправляем код из смс и token -> получаем sellerToken(сессионный в любой момент упадет)"""
     """wb_api: https://seller.wildberries.ru/passport/api/v2/auth/login"""
     """data = {"options": {"notify_code": sms_code}, "token": token}"""
     send_code_from_sms_url: str = 'http://65.21.229.152:1488/auth/enter-sms'
+    # send_code_from_sms_url: str = 'https://seller.wildberries.ru/passport/api/v2/auth/login'
 
     """Отправляем sellerToken -> получаем passportToken(живет 7-10дней нужен для восстановления sellerToken)"""
     get_passportToken_url: str = 'http://65.21.229.152:1488/auth/passport'
@@ -84,6 +86,7 @@ class WBAPIManager:
                 url=self.wb_data.send_phone_url,
                 method='post',
                 data={"phoneNumber": int(phone_number)}
+                # data={"phone": int(phone_number), "is_terms_and_conditions_accepted": True},
             )
             self.logger.debug(self.sign + f'send phoneNumber: {phone_number}, response: {response_request}')
             if sms_token := await self.get_token(response_request):
@@ -198,7 +201,7 @@ class WBAPIManager:
 
         result = {f"Feedback{feedback.get('id')}": {
                         'supplier': f"Supplier{x_supplier_id}",
-                        'button_name': f"[ {feedback.get('productValuation')} ]  {feedback.get('text')[:45]}",
+                        'button_name': f"[ {feedback.get('productValuation')} ]  {feedback.get('text')[:100]}",
                         'text': feedback.get('text'), 'answer': feedback.get('answer'),
                         'productValuation': feedback.get('productValuation'),
                         'productName': feedback.get('productDetails')['productName'],
@@ -207,7 +210,7 @@ class WBAPIManager:
 
         data = [self.ai.reply_many_feedbacks(feed_name=feed_name, feedback=feed_data.get('text')) for feed_name, feed_data in result.items()]
         list_result = await asyncio.gather(*data)
-        await asyncio.sleep(1)
+        await asyncio.sleep(0.1)
         update_result = [result.get(feed_name).update({'answer': answer}) for feed_name, answer in list_result]
 
         self.logger.debug(self.sign + f'get_feedback_list supplier: "{list(supplier.values())[0]}, '

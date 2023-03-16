@@ -88,6 +88,9 @@ FLOOD_CONTROL_NUM_ALERTS = 10
 """ Время остановки обслуживания пользователя для защиты от флуда в секундах """
 FLOOD_CONTROL_STOP_TIME = 60
 
+""" Количество запрашиваемых отзывов в одном запросе к Wildberries"""
+WB_TAKE = 10
+
 """ Настройки прокси """
 # USE_PROXI = False
 USE_PROXI = True

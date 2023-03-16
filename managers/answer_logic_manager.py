@@ -39,6 +39,8 @@ class AnswerLogicManager:
                     main_menu = True
                     insert = True
 
+                # align = "left" if button.__class__.__name__.startswith('Feedback') else "center"
+
                 if len(buttons) == 1 or index < len(buttons):
                     if button.__class__.__name__ == 'EditFeedback':
                         text = f"\n{parent_button.any_data.get('answer')}" if parent_button else "Ошибка"
@@ -49,7 +51,7 @@ class AnswerLogicManager:
                             InlineKeyboardButton(text=button.name, callback_data=button.callback, url=button.url))
                 else:
                     keyboard.insert(
-                        InlineKeyboardButton(text=button.name, callback_data=button.callback, url=button.url,)) \
+                        InlineKeyboardButton(text=button.name, callback_data=button.callback, url=button.url)) \
                         if insert and not main_menu else keyboard.add(InlineKeyboardButton(
                             text=button.name, callback_data=button.callback, url=button.url))
 
