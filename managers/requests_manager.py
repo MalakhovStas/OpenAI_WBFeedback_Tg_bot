@@ -98,12 +98,10 @@ class RequestsManager:
                                 result = await response.json()
                     if method == 'patch':
                         async with session.patch(url, data=data, ssl=False, timeout=20) as response:
-                            print(response)
                             if response.content_type == 'text/html':
                                 result = {'response': await response.text()}
                             else:
                                 result = await response.json()
-                            print(result)
 
                     else:
                         async with session.get(url, ssl=False, timeout=20) as response:
