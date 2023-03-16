@@ -201,6 +201,7 @@ class WBAPIManager:
         data = [self.ai.reply_many_feedbacks(feed_name=feed_name, feedback=feed_data.get('text'))
                 for feed_name, feed_data in result.items()]
         [result.get(feed_name).update({'answer': answer}) for feed_name, answer in await asyncio.gather(*data)]
+        await asyncio.sleep(1)
 
         self.logger.debug(self.sign + f'get_feedback_list supplier: "{list(supplier.values())[0]}, '
                                       f'result num feedbacks: {len(result)}')
