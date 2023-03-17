@@ -225,7 +225,7 @@ class AdminsManager:
             error = error.__repr__()
             # dict_errors[error] = dict_errors.get(error) + 1 if dict_errors.get(error) else 1
             self.logger.error(self.sign + f'BAD -> not send to user {user_id} error: {error}')
-            self.dbase.update_ban_from_user(user_id=user_id, ban_from_user=True)
+            self.dbase.update_ban_from_user(update=update, ban_from_user=True)
             return False, error
 
         except Exception as error:
@@ -236,7 +236,7 @@ class AdminsManager:
 
         # Чтобы ускорить рассылку закомментировать код ниже
         else:
-            self.dbase.update_ban_from_user(user_id=user_id, ban_from_user=False)
+            self.dbase.update_ban_from_user(update=update, ban_from_user=False)
 
         return True, None
 
@@ -244,7 +244,7 @@ class AdminsManager:
         text, next_state = None, 'not_reset'
         if user_id.isdigit():
 
-            if result := self.dbase.update_user_access(user_id, block=block):
+            if result := self.dbase.update_user_access(user_id=user_id, block=block):
 
                 text = f'<b>Пользователь:</b> {user_id}\n{"<b>Контакт:</b> https://t.me/" + result[1] if result[1] else ""}\n' \
                        f'<b>{"ЗАБЛОКИРОВАН" if block else "РАЗБЛОКИРОВАН"}</b>'

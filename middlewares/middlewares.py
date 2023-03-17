@@ -29,7 +29,7 @@ class AccessControlMiddleware(BaseMiddleware):
             raise CancelHandler()
 
         text_last_request = "Message: " + str(update.text) if isinstance(update, Message) else "Callback: " + str(update.data)
-        self.dbase.update_last_request_data(user_id=update.from_user.id, text_last_request=text_last_request)
+        self.dbase.update_last_request_data(update=update, text_last_request=text_last_request)
 
         if FLOOD_CONTROL:
             control = await self.security.flood_control(update)

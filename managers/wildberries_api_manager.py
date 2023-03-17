@@ -189,16 +189,21 @@ class WBAPIManager:
 
         feedbacks = list()
         take = WB_TAKE if not take else take
+        ignored_feeds = dict()
+        unanswered_feeds = dict()
+
         if isinstance(supplier, dict):
             x_supplier_id = list(supplier.keys())[0].lstrip('Supplier')
             supplier_name = list(supplier.values())[0]
         else:
-            x_supplier_id = supplier.lstrip('Supplier')
-            supplier_name = supplier
+            x_supplier_id = supplier.lstrip('Supplier') if supplier else ''
+            supplier_name = supplier if supplier else ''
 
-        wb_user = self.dbase.tables.wildberries.get_or_none(user_id=update.from_user.id)
-        ignored_feeds = wb_user.ignored_feedbacks
-        unanswered_feeds = wb_user.unanswered_feedbacks
+        if wb_user := self.dbase.tables.wildberries.get_or_none(user_id=update.from_user.id):
+            ignored_feeds = wb_user.ignored_feedbacks
+            unanswered_feeds = wb_user.unanswered_feedbacks
+            self.logger.debug(self.sign + f'func: get_feedback_list -> num ignored_feeds: {len(ignored_feeds)}, '
+                                          f'num unanswered_feeds: {len(unanswered_feeds)} <- get from DB')
 
         response_request = await self.requests_manager(
             url=self.wb_data.get_feedback_list_url(take=len(ignored_feeds) + take),
@@ -210,6 +215,8 @@ class WBAPIManager:
         if response_request:
             if data := response_request.get('data'):
                 feedbacks = data.get('feedbacks')
+                self.logger.debug(self.sign + f'func: get_feedback_list -> num feedback: {len(feedbacks)} '
+                                              f'<- get from WB API')
 
         result = {f"Feedback{feedback.get('id')}": {
                         'supplier': f"Supplier{x_supplier_id}",
@@ -218,14 +225,15 @@ class WBAPIManager:
                         'productValuation': feedback.get('productValuation'),
                         'productName': feedback.get('productDetails')['productName'],
                         'createdDate': feedback.get('createdDate')
-                        } for feedback in feedbacks if not f"Feedback{feedback.get('id')}" in ignored_feeds.keys() and not f"Feedback{feedback.get('id')}" in unanswered_feeds.keys()}
+                        } for feedback in feedbacks if not f"Feedback{feedback.get('id')}" in ignored_feeds.keys() and
+                                                       not f"Feedback{feedback.get('id')}" in unanswered_feeds.keys()}
 
         data = [self.ai.reply_many_feedbacks(feed_name=feed_name, feedback=feed_data.get('text')) for feed_name, feed_data in result.items()]
         list_result = await asyncio.gather(*data)
         await asyncio.sleep(0.1)
         [result.get(feed_name).update({'answer': answer}) for feed_name, answer in list_result]
 
-        self.logger.debug(self.sign + f'get_feedback_list supplier: "{supplier_name}, '
+        self.logger.debug(self.sign + f'func get_feedback_list supplier: "{supplier_name}, '
                                       f'result num feedbacks: {len(result)}')
         self.dbase.save_unanswered_feedbacks(unanswered_feedbacks=result, user_id=update.from_user.id)
         return result

@@ -53,7 +53,7 @@ class DBManager:
     def get_all_messages(self):
         result = self.tables.messages.select()
         self.logger.debug(
-            self.sign + f'OK -> selected all messages from tables: {self.tables.messages} in DB')
+            self.sign + f'OK -> selected all messages from tables: {self.tables.messages}')
         return result
 
     def reload_table_messages(self, data):
@@ -81,25 +81,26 @@ class DBManager:
                 user.password = "admin" if admin else None
                 user.save()
 
-        text = 'created new user in' if fact_create else 'get user from'
-        self.logger.debug(
-            self.sign + f'OK -> {text} DB -> user_id:{user.user_id}, username: {user.username}')
+        text = 'created new user' if fact_create else 'get user'
+        self.logger.debug(self.sign + f' {text.upper()}: {user.username} | user_id:{user.user_id}')
         return user
 
     def get_all_users(self, id_only: bool = False, not_ban: bool = False) -> tuple:
         if not_ban and id_only:
             result = tuple(self.tables.users.select(
                 self.tables.users.user_id).where(self.tables.users.ban_from_user == 0))
-            self.logger.debug(self.sign + f'OK -> selected all users_id WHERE ban != ban from DB')
+            self.logger.debug(self.sign + f'func get_all_users -> selected all users_id WHERE ban != ban '
+                                          f'num: {len(result) if result else None}')
 
         elif id_only:
             result = tuple(self.tables.users.select(self.tables.users.user_id))
-            self.logger.debug(self.sign + f'OK -> selected all users_id from DB')
+            self.logger.debug(self.sign + f'func get_all_users -> selected all users_id '
+                                          f'num: {len(result) if result else None}')
 
         else:
             result = self.tables.users.select()
-            self.logger.debug(self.sign + f'OK -> selected all users fields from DB')
-
+            self.logger.debug(self.sign + f'func get_all_users -> selected all users fields '
+                                          f'num: {len(result) if result else None}')
 
         return result
 
@@ -118,10 +119,18 @@ class DBManager:
         else:
             return False, 'bad data'
         user.save()
-        self.logger.debug(self.sign + f'OK -> update user balance from DB')
+
+        if up_balance:
+            result = f'up_balance: {up_balance}'
+        elif down_balance:
+            result = f'down_balance: {down_balance}'
+        else:
+            result = f'zero_balance: {zero_balance}'
+
+        self.logger.debug(self.sign + f'func update_user_balance -> user_id: {user_id} | {result}')
         return True, user.balance, user.username
 
-    def update_user_access(self, user_id: str, block: bool = False) -> bool | tuple:
+    def update_user_access(self, user_id: str | int, block: bool = False) -> bool | tuple:
         user = self.tables.users.get_or_none(user_id=user_id)
         if not user:
             return False
@@ -130,36 +139,38 @@ class DBManager:
         else:
             user.access = 'allowed'
         user.save()
-        self.logger.debug(self.sign + f'OK -> update user access {"BLOCK" if block else "ALLOWED"} from DB')
+        self.logger.debug(self.sign + f'func update_user_access -> {"BLOCK" if block else "ALLOWED"} '
+                                      f'| user_id: {user_id}')
         return True, user.username
 
-    def update_ban_from_user(self, user_id: str, ban_from_user: bool = False) -> bool | tuple:
-        user: Tables.users = self.tables.users.get_or_none(user_id=user_id)
+    def update_ban_from_user(self, update, ban_from_user: bool = False) -> bool | tuple:
+        user: Tables.users = self.tables.users.get_or_none(user_id=update.from_user.id)
         if not user:
             return False
         user.ban_from_user = ban_from_user
         user.save()
-        self.logger.debug(self.sign + f'OK -> update user ban_from_user: {ban_from_user} in DB')
-
+        self.logger.debug(self.sign + f'func update_ban_from_user -> user: {user.username} | '
+                                      f'user_id: {update.from_user.id} | ban: {ban_from_user}')
         return True, user.username
 
     def count_users(self, all_users: bool = False, register: bool = False,  date: datetime | None = None) -> str:
         if all_users:
             nums = self.tables.users.select().count()
-            self.logger.debug(self.sign + f'OK -> COUNT all users {nums}')
+            self.logger.debug(self.sign + f'func count_users -> all users {nums}')
 
         elif register:
             nums = self.tables.users.select().wheere(self.tables.users.date_join == date).count()
-            self.logger.debug(self.sign + f'OK -> COUNT {nums} users WHERE date_join == date: {date}')
+            self.logger.debug(self.sign + f'func count_users -> num users: {nums} WHERE date_join == date: {date}')
 
         else:
             # nums = self.tables.users.select("SELECT Count() FROM users WHERE date_last_request >= ?", (date,))
             nums = self.tables.users.select().where(self.tables.users.date_last_request >= date).count()
-            self.logger.debug(self.sign + f'OK -> COUNT {nums} users WHERE date_last_request == date: {date}')
+            self.logger.debug(self.sign + f'func count_users -> num users: {nums} '
+                                          f'WHERE date_last_request == date: {date}')
 
         return nums
 
-    def select_all_contacts_users(self, update: Message | CallbackQuery = None) -> tuple:
+    def select_all_contacts_users(self) -> tuple:
         users = self.tables.users.select(
             self.tables.users.user_id,
             self.tables.users.first_name,
@@ -179,25 +190,26 @@ class DBManager:
 
     def select_password(self, user_id: int) -> str:
         user = self.tables.users.select(self.tables.users.password).where(self.tables.users.user_id == user_id).get()
-        self.logger.debug(self.sign + f'OK -> SELECT password {user.password}')
+        self.logger.debug(self.sign + f'func select_password password -> len password {len(user.password)}')
 
         return user.password
 
-    def update_last_request_data(self, user_id: str, text_last_request: str) -> bool | None:
-        user: Tables.users = self.tables.users.get_or_none(user_id=user_id)
+    def update_last_request_data(self, update, text_last_request: str) -> bool | None:
+        user = self.tables.users.get_or_none(user_id=update.from_user.id)
         if not user:
             return False
+
         user.date_last_request = datetime.now()
         user.num_requests += 1
         user.text_last_request = text_last_request
         user.save()
-        self.logger.debug(self.sign + f'OK -> update last_request user in DB user_id:{user_id} '
+        self.logger.debug(self.sign + f'func update_last_request_data -> user: {update.from_user.username} | '
+                                      f'user_id:{update.from_user.id} | '
                                       f'last_request_data: {text_last_request}')
 
     """Ниже методы работы с WBManager"""
     def save_phone_number_and_sms_token(self, phone_number, sms_token, user_id):
-        wb_user = self.tables.wildberries.get_or_none(user_id=user_id)
-        if wb_user:
+        if wb_user := self.tables.wildberries.get_or_none(user_id=user_id):
             wb_user.phone = phone_number
             wb_user.sms_token = sms_token
             wb_user.save()
@@ -205,30 +217,26 @@ class DBManager:
     def save_seller_token(self, seller_token, user_id):
         self.logger.info(self.sign + f'save sellerToken: {seller_token}')
 
-        wb_user = self.tables.wildberries.get_or_none(user_id=user_id)
-        if wb_user:
+        if wb_user := self.tables.wildberries.get_or_none(user_id=user_id):
             wb_user.sellerToken = seller_token
             wb_user.save()
 
     def save_passport_token(self, passport_token, user_id):
         self.logger.info(self.sign + f'save passportToken: {passport_token}')
-        wb_user = self.tables.wildberries.get_or_none(user_id=user_id)
-        if wb_user:
+        if wb_user := self.tables.wildberries.get_or_none(user_id=user_id):
             wb_user.passportToken = passport_token
             wb_user.save()
 
     def save_wb_user_id(self, wb_user_id, user_id):
         self.logger.info(self.sign + f'save wb_user_id: {wb_user_id}')
-        wb_user = self.tables.wildberries.get_or_none(user_id=user_id)
-        if wb_user:
+        if wb_user := self.tables.wildberries.get_or_none(user_id=user_id):
             if not wb_user.WB_user_id or wb_user.WB_user_id != wb_user_id:
                 wb_user.WB_user_id = wb_user_id
                 wb_user.save()
 
     def save_suppliers(self, suppliers: dict, user_id):
         self.logger.info(self.sign + f'save suppliers: {suppliers}')
-        wb_user = self.tables.wildberries.get_or_none(user_id=user_id)
-        if wb_user:
+        if wb_user := self.tables.wildberries.get_or_none(user_id=user_id):
             wb_user.suppliers = suppliers
             wb_user.save()
 
@@ -249,7 +257,10 @@ class DBManager:
         if wb_user:
             feedback_in_db = wb_user.unanswered_feedbacks
             if feedback_in_db and isinstance(feedback_in_db, dict):
+                self.logger.info(self.sign + f'update unanswered_feedbacks num feeds: {len(unanswered_feedbacks)}')
                 wb_user.unanswered_feedbacks = {**feedback_in_db, **unanswered_feedbacks}
             else:
                 wb_user.unanswered_feedbacks = unanswered_feedbacks
+                self.logger.info(self.sign + f'save num unanswered_feedbacks: {len(unanswered_feedbacks)} '
+                                             f'this all unans_feeds in DB')
             wb_user.save()

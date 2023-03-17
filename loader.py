@@ -19,6 +19,7 @@ logger.add(**LOGGER_ERRORS)
 logger.add(**LOGGER_DEBUG)
 
 dbase = DBManager(logger=logger)
+security = SecurityManager(dbase=dbase, logger=logger)  # должен быть первым из менеджеров
 
 
 bot = Bot(token=BOT_TOKEN, parse_mode=types.ParseMode.HTML)
@@ -30,10 +31,9 @@ dp = Dispatcher(bot=bot, storage=storage)
 
 rm = RequestsManager(logger=logger)
 ai = OpenAIManager(logger=logger)
-security = SecurityManager(dbase=dbase, logger=logger)
 adm = AdminsManager(bot=bot, logger=logger, dbase=dbase)
-
 alm = AnswerLogicManager(ai=ai, bot=bot, logger=logger)
 wb_api = WBAPIManager(dbase=dbase, rm=rm, ai=ai, logger=logger)
 
-Base.ai, Base.bot, Base.wb_api, Base.logger = ai, bot, wb_api, logger
+Base.ai, Base.bot, Base.wb_api = ai, bot, wb_api
+

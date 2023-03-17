@@ -7,9 +7,9 @@ class BaseTimezoneButton(BaseButton):
 
     async def _set_answer_logic(self, update, state):
         with self.dbase:
-            wb_row = self.tables.wildberries.get_or_none(user_id=update.from_user.id)
-            wb_row.timezone_notification_times = self.name
-            wb_row.save()
+            if wb_user := self.tables.wildberries.get_or_none(user_id=update.from_user.id):
+                wb_user.timezone_notification_times = self.name
+                wb_user.save()
         return self.reply_text, self.next_state
 
 

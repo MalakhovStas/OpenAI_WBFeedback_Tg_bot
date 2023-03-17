@@ -3,7 +3,7 @@ import re
 from abc import ABC
 from types import FunctionType
 from typing import Any
-
+from loguru import logger
 from database.db_utils import db, Tables
 
 
@@ -16,7 +16,7 @@ class Base(ABC):
     bot = None  # Добавляется в loader.py
     wb_api = None  # Добавляется в loader.py
     wb_parsing = None  # Добавляется в loader.py
-    logger = None  # Добавляется в loader.py
+    logger = logger  # Добавляется в loader.py
 
     # exception_controller = None  # Добавляется в loader.py
 
@@ -101,7 +101,12 @@ class Base(ABC):
 
     @staticmethod
     async def change_name_button(button, num):
-        was = re.search(r'< \d+ >', button.name).group(0)
+        i_was = None
+        res_re = re.search(r'< \d+ >', button.name)
+        if res_re:
+            i_was = res_re.group(0)
+        was = i_was if i_was else '< 0 >'
+
         will_be = f"< {num} >"
         button.name = button.name.replace(was, will_be)
         return button
@@ -123,8 +128,10 @@ class BaseMessage(Base):
     добавляется в коллекцию на основе префикса"""
 
     __instance = None
+    base_sign = 'BaseMessage: '
 
-    __slots__ = ('button_id', 'state_or_key', 'reply_text', 'children_buttons', 'next_state', 'parent_name')
+    __slots__ = ('button_id', 'state_or_key', 'reply_text',
+                 'children_buttons', 'next_state', 'parent_name', 'class_name')
 
     def __new__(cls, *args, **kwargs):
         if cls.__instance is None:
@@ -134,7 +141,8 @@ class BaseMessage(Base):
     def __init__(self, button: Any | int | None = None, state_or_key: str | None = None, reply_text: str | None = None,
                  children_buttons: list | None = None, parent_name: str | None = None):
 
-        if self.__class__ != BaseMessage.__name__:
+        if self.__class__.__name__ != BaseMessage.__name__:
+            self.class_name = self.__class__.__name__
             self.button_id = button.button_id if (button and isinstance(button, BaseButton)) else button
             self.parent_name = parent_name
             self.state_or_key = self._set_state_or_key() if not state_or_key else state_or_key
@@ -156,13 +164,17 @@ class BaseMessage(Base):
         return reply_text
 
     def _save_message(self) -> None:
-        """ Сохраняет данные сообщения в БД """
-        # TODO настроить логику обновления данных в БД и из нее используя fact_create
+        """ Сохраняет данные сообщения в БД возможно их изменение при __call__ экземпляра класса """
         with self.dbase:
             message, fact_create = self.tables.messages.get_or_create(button_id=self.button_id)
-            message.state_or_key = self.state_or_key
-            message.reply_text = self.reply_text
-            message.children_buttons = [child.button_id for child in self.children_buttons]
+            if message:
+                message.state_or_key = self.state_or_key
+                message.reply_text = self.reply_text
+                message.children_buttons = [child.button_id for child in self.children_buttons]
+                if fact_create:
+                    self.logger.debug(self.base_sign + f'create new object message: {self.class_name} in DB')
+                else:
+                    self.logger.debug(self.base_sign + f'update object message: {self.class_name} in DB')
 
 
 class BaseButton(Base):
@@ -172,9 +184,10 @@ class BaseButton(Base):
 
     __instance = None
     __buttons_id = [0, ]
+    base_sign = 'BaseButton: '
 
     __slots__ = ('button_id', 'name', 'url', 'callback', 'parent_id', 'reply_text', 'next_state',
-                 'children_buttons', 'children_messages', 'any_data', 'parent_name')
+                 'children_buttons', 'children_messages', 'any_data', 'parent_name', 'class_name')
 
     def __new__(cls, *args, **kwargs):
         if cls.__instance is None:
@@ -186,7 +199,8 @@ class BaseButton(Base):
                  reply_text: str | None = None, children: list | None = None, messages: dict | None = None,
                  any_data: dict | None = None, next_state: str | None = None):
 
-        if new and self.__class__ != BaseButton.__name__:
+        if new and self.__class__.__name__ != BaseButton.__name__:
+            self.class_name = self.__class__.__name__
             self.button_id = self.__set_button_id()
             self.name = self._set_name() if not name else name
             self.url = self._set_url()
@@ -225,31 +239,37 @@ class BaseButton(Base):
         return button_id
 
     def __save_button(self) -> None:
-        # TODO настроить логику обновления данных в БД и из нее используя fact_create
+        """Вызывается один раз при создании singleton экземпляра класса"""
         with self.dbase:
             button, fact_create = self.tables.buttons.get_or_create(button_id=self.button_id)
-            button.parent_id = self.parent_id
-            button.name = self.name
-            button.callback = self.callback
-            button.reply_text = self.reply_text
-            button.save()
+            if button:
+                button.parent_id = self.parent_id
+                button.name = self.name
+                button.callback = self.callback
+                button.reply_text = self.reply_text
+                button.save()
+                if fact_create:
+                    self.logger.debug(self.base_sign + f'create new object button: {self.class_name} in DB')
+                else:
+                    self.logger.debug(self.base_sign + f'update object button: {self.class_name} in DB')
 
     def __update_children_and_messages(self) -> None:
+        """Вызывается один раз при создании singleton экземпляра класса"""
         with self.dbase:
-            button = self.tables.buttons.get_or_none(button_id=self.button_id)
-            if button:
+            if button := self.tables.buttons.get_or_none(button_id=self.button_id):
                 button.children = [child.button_id for child in self.children_buttons]
                 button.messages = [child.state_or_key for child in self.children_messages.values()]
                 button.save()
+                self.logger.debug(self.base_sign + f'update lists children objects in object button: {self.class_name} in DB')
 
     def _set_name(self) -> str:
-        name = 'Button:' + self.__class__.__name__
+        name = 'Button:' + self.class_name
         return name
 
     def _set_callback(self) -> str | None:
         if self.url:
             return None
-        return self.__class__.__name__
+        return self.class_name
 
     def _set_url(self) -> str | None:
         return None

@@ -25,9 +25,9 @@ class SecurityManager:
         """ Логирование информации о входящем сообщении от пользователя"""
         state_user, data_user = await self.__get_data_from_user_data(update, user_data)
 
-        message = f'incoming update -> {("callback:", update.data) if isinstance(update, CallbackQuery) else ("message:", update.text)}' \
-                  f' -> from USER -> full_name: {update.from_user.full_name}, user_id: {update.from_user.id}, ' \
-                  f'@username: {update.from_user.username}, state_user: {state_user}, data_user: {data_user}'
+        message = f'incoming -> {" ".join(("CallbackQuery", f"| data: {update.data}")) if isinstance(update, CallbackQuery) else " ".join(("Message", f"| text: {update.text}"))} <- | ' \
+                  f'user: {update.from_user.username} | user_id: {update.from_user.id} | full_name: {update.from_user.full_name} | ' \
+                  f'fsm_state_user: {state_user}, fsm_data_user: {data_user}'
 
         self.logger.info(self.sign + message)
 
@@ -44,16 +44,17 @@ class SecurityManager:
 
     async def check_user(self, update: CallbackQuery | Message, user_data: dict | None) -> bool:
         """ Для проверки пользователя на предмет блокировки или создания нового """
+        text_user = f'user: {update.from_user.username} | user_id: {update.from_user.id}'
         await self.update_informer(update, user_data)
 
         user = self.dbase.get_or_create_user(update=update)  # Именно тут создаётся new user
 
         user_status = user.access if user else 'new user'
         if user_status == 'block':
-            self.logger.warning(self.sign + f'user_status: {user_status.upper()} -> user: {update.from_user.id}')
+            self.logger.warning(self.sign + f'user_status -> {user_status.upper()} <- | {text_user}')
             result = False
         else:
-            self.logger.info(self.sign + f'user_status: {user_status.upper()} -> user: {update.from_user.id}')
+            self.logger.info(self.sign + f'user_status -> {user_status.upper()} <- | {text_user}')
             result = True
 
         return result
@@ -86,5 +87,6 @@ class SecurityManager:
 
             self.__flood_control_data[user_id] = flood_data
 
-        self.logger.info(self.sign + f'{result.upper()} -> flood control -> user: {user_id}')
+        self.logger.info(self.sign + f'flood control -> {result.upper()} <- | '
+                                     f'user: {update.from_user.username} | user_id: {update.from_user.id}')
         return result

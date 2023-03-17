@@ -58,11 +58,11 @@ class PostFeedback(BaseButton):
             action='get', button_name=data.get('previous_button'))
 
         with self.dbase:
-            wb_user = self.tables.wildberries.get_or_none(user_id=update.from_user.id)
-            wb_user.unanswered_feedbacks.pop(feed_button.__class__.__name__)
-            seller_token = wb_user.sellerToken
-            signature = wb_user.signature_to_answer
-            wb_user.save()
+            if wb_user := self.tables.wildberries.get_or_none(user_id=update.from_user.id):
+                wb_user.unanswered_feedbacks.pop(feed_button.__class__.__name__)
+                seller_token = wb_user.sellerToken
+                signature = wb_user.signature_to_answer
+                wb_user.save()
 
         # print(seller_token)
         # print(feed_button.parent_name.lstrip('Supplier'))
@@ -128,9 +128,10 @@ class GenerateNewResponseToFeedback(BaseButton):
         previous_button.any_data['answer'] = reply_feedback
 
         with self.dbase:
-            wb_user = self.tables.wildberries.get_or_none(user_id=update.from_user.id)
-            wb_user.unanswered_feedbacks.get(previous_button.__class__.__name__).update({'answer': reply_feedback})
-            wb_user.save()
+            if wb_user := self.tables.wildberries.get_or_none(user_id=update.from_user.id):
+                if wb_user.unanswered_feedbacks.get(previous_button.__class__.__name__):
+                    wb_user.unanswered_feedbacks.get(previous_button.__class__.__name__).update({'answer': reply_feedback})
+                    wb_user.save()
 
         self.children_buttons = previous_button.children_buttons
         await self.bot.delete_message(chat_id=update.from_user.id, message_id=message_waiting.message_id)
@@ -159,10 +160,10 @@ class DontReplyFeedback(BaseButton):
         await self.change_name_button(supplier_button, len(self.children_buttons)-1)
 
         with self.dbase:
-            wb_user = self.tables.wildberries.get_or_none(user_id=update.from_user.id)
-            rm_feed = wb_user.unanswered_feedbacks.pop(removed_button.__class__.__name__, None)
-            wb_user.ignored_feedbacks[removed_button.__class__.__name__] = rm_feed
-            wb_user.save()
+            if wb_user := self.tables.wildberries.get_or_none(user_id=update.from_user.id):
+                if rm_feed := wb_user.unanswered_feedbacks.pop(removed_button.__class__.__name__, None):
+                    wb_user.ignored_feedbacks[removed_button.__class__.__name__] = rm_feed
+                    wb_user.save()
 
         return supplier_button.reply_text, supplier_button.next_state
 
@@ -183,9 +184,10 @@ class MessageEditFeedbackAnswer(BaseMessage):
         previous_button.any_data['answer'] = new_reply_text
 
         with self.dbase:
-            wb_user = self.tables.wildberries.get_or_none(user_id=update.from_user.id)
-            wb_user.unanswered_feedbacks.get(previous_button.__class__.__name__).update({'answer': new_reply_text})
-            wb_user.save()
+            if wb_user := self.tables.wildberries.get_or_none(user_id=update.from_user.id):
+                if wb_user.unanswered_feedbacks.get(previous_button.__class__.__name__):
+                    wb_user.unanswered_feedbacks.get(previous_button.__class__.__name__).update({'answer': new_reply_text})
+                    wb_user.save()
 
         self.children_buttons = previous_button.children_buttons
 
@@ -211,11 +213,11 @@ class Utils(Base):
         phone = update.text.strip()
         if phone.startswith('+7') and phone.lstrip('+').isdigit() and len(phone) == 12:
             with self.dbase:
-                wb_user = self.tables.wildberries.get_or_none(user_id=update.from_user.id)
-                wb_user.phone = phone
-                wb_user.save()
-                wb_user.sms_token = await self.wb_api.send_phone_number(phone, update)
-                wb_user.save()
+                if wb_user := self.tables.wildberries.get_or_none(user_id=update.from_user.id):
+                    wb_user.phone = phone
+                    wb_user.save()
+                    wb_user.sms_token = await self.wb_api.send_phone_number(phone, update)
+                    wb_user.save()
 
             reply_text = 'Пожалуйста, введите код который пришёл в кабинет покупателя ' \
                          'Wildberries либо по смс на указанный номер телефона:'
@@ -229,10 +231,10 @@ class Utils(Base):
                                          phone:  str | int | None = None,
                                          sms_code: str | int | None = None) -> tuple | str:
         with self.dbase:
-            wb_user = self.tables.wildberries.get_or_none(user_id=update.from_user.id)
-            sellerToken = wb_user.sellerToken
-            passportToken = wb_user.passportToken
-            sms_token = wb_user.sms_token
+            if wb_user := self.tables.wildberries.get_or_none(user_id=update.from_user.id):
+                sellerToken = wb_user.sellerToken
+                passportToken = wb_user.passportToken
+                sms_token = wb_user.sms_token
 
         if not sellerToken and not passportToken and not phone and not sms_code:
             reply_text, next_state = await self.send_request_for_phone_number(update=update, state=state)
@@ -262,9 +264,9 @@ class Utils(Base):
         suppliers = []
 
         with self.dbase:
-            wb_user = self.tables.wildberries.get_or_none(user_id=update.from_user.id)
-            wb_user_suppliers = wb_user.suppliers
-            seller_token = wb_user.sellerToken
+            if wb_user := self.tables.wildberries.get_or_none(user_id=update.from_user.id):
+                wb_user_suppliers = wb_user.suppliers
+                seller_token = wb_user.sellerToken
 
             self.logger.debug(f'Utils: get suppliers buttons names from DB: {wb_user_suppliers}')
 
@@ -292,11 +294,12 @@ class Utils(Base):
 
     async def feedback_buttons_logic(self, supplier: dict | str, update) -> list:
         supplier_name_key = list(supplier.keys())[0] if isinstance(supplier, dict) else supplier
-
+        feedbacks = None
         with self.dbase:
-            wb_user = self.tables.wildberries.get_or_none(user_id=update.from_user.id)
+            if wb_user := self.tables.wildberries.get_or_none(user_id=update.from_user.id):
+                feedbacks = wb_user.unanswered_feedbacks
 
-        if feedbacks := wb_user.unanswered_feedbacks:
+        if feedbacks:
             """Выбираем неотвеченные отзывы конкретного supplier из БД"""
             feedbacks = {feedback_id: feedback_data for feedback_id, feedback_data in feedbacks.items()
                          if feedback_data.get('supplier') == supplier_name_key}
@@ -385,32 +388,30 @@ class UpdateListFeedbacks(BaseButton, Utils):
     async def _set_answer_logic(self, update: CallbackQuery, state: FSMContext):
         data = await state.get_data()
         supplier_name_key = data.get('previous_button')
+        feedbacks = None
+        buttons = []
+
+        msg = await self.bot.send_message(chat_id=update.from_user.id, text=self.default_download_information)
 
         with self.dbase:
             wb_user = self.tables.wildberries.get_or_none(user_id=update.from_user.id)
 
-        msg = await self.bot.send_message(chat_id=update.from_user.id, text=self.default_download_information)
+        if wb_user:
+            feedbacks = await self.wb_api.get_feedback_list(
+                seller_token=wb_user.sellerToken, supplier=supplier_name_key, update=update)
+            await self.bot.delete_message(chat_id=update.from_user.id, message_id=msg.message_id)
 
-        feedbacks = await self.wb_api.get_feedback_list(
-            seller_token=wb_user.sellerToken, supplier=supplier_name_key, update=update)
-        await self.bot.delete_message(chat_id=update.from_user.id, message_id=msg.message_id)
+        if feedbacks:
+            buttons = await self.utils_get_or_create_buttons(
+                collection=feedbacks, class_type='feedback', update=update, supplier_name_key=supplier_name_key)
 
-
-        # button = await self.button_search_and_action_any_collections(action='get', button_name=supplier_name_key)
-        # await self.feedback_buttons_logic(supplier=supplier_name_key, update=update)
-
-        buttons = await self.utils_get_or_create_buttons(
-            collection=feedbacks, class_type='feedback', update=update, supplier_name_key=supplier_name_key)
-
-        # print(supplier_name_key)
-        # print(buttons)
-        # print(any(button.__class__.__name__.startswith('Feedback') for button in buttons))
         if not any(button.__class__.__name__.startswith('Feedback') for button in buttons):
             buttons = await self.feedback_buttons_logic(supplier=supplier_name_key, update=update)
 
-        supplier_button = await self.button_search_and_action_any_collections(action='get', button_name=supplier_name_key)
-        supplier_button.children_buttons = buttons
-        await self.change_name_button(supplier_button, len(buttons)-1)
+        if supplier_name_key:
+            supplier_button = await self.button_search_and_action_any_collections(action='get', button_name=supplier_name_key)
+            supplier_button.children_buttons = buttons
+            await self.change_name_button(supplier_button, len(buttons)-1)
 
         self.children_buttons = buttons
         # self.children_buttons.append(self)
@@ -489,9 +490,9 @@ class AroundTheClock(BaseButton):
 
     async def _set_answer_logic(self, update, state):
         with self.dbase:
-            wb_row = self.tables.wildberries.get_or_none(user_id=update.from_user.id)
-            wb_row.notification_times = 'around_the_clock'
-            wb_row.save()
+            if wb_user := self.tables.wildberries.get_or_none(user_id=update.from_user.id):
+                wb_user.notification_times = 'around_the_clock'
+                wb_user.save()
         return self.reply_text, self.next_state
 
 
@@ -507,9 +508,9 @@ class DayFrom9To18Hours(BaseButton):
 
     async def _set_answer_logic(self, update, state):
         with self.dbase:
-            wb_row = self.tables.wildberries.get_or_none(user_id=update.from_user.id)
-            wb_row.notification_times = '9-18'
-            wb_row.save()
+            if wb_user := self.tables.wildberries.get_or_none(user_id=update.from_user.id):
+                wb_user.notification_times = '9-18'
+                wb_user.save()
         return self.reply_text, self.next_state
 
 
@@ -525,9 +526,9 @@ class FullDayFrom9To21Hours(BaseButton):
 
     async def _set_answer_logic(self, update, state):
         with self.dbase:
-            wb_row = self.tables.wildberries.get_or_none(user_id=update.from_user.id)
-            wb_row.notification_times = '9-21'
-            wb_row.save()
+            if wb_user := self.tables.wildberries.get_or_none(user_id=update.from_user.id):
+                wb_user.notification_times = '9-21'
+                wb_user.save()
         return self.reply_text, self.next_state
 
 
@@ -548,9 +549,9 @@ class MessageEnterYourselfSetUpNotificationTimes(BaseMessage):
                 and all([sym.isdigit() and int(sym) in range(25) for sym in period]) and period[0] > period[1]:
             self.children_buttons = self._set_children()
             with self.dbase:
-                wb_row = self.tables.wildberries.get_or_none(user_id=update.from_user.id)
-                wb_row.notification_times = enter_data
-                wb_row.save()
+                if wb_user := self.tables.wildberries.get_or_none(user_id=update.from_user.id):
+                    wb_user.notification_times = enter_data
+                    wb_user.save()
             # TODO логика настройки уведомлений wildberries
             text = self.reply_text
             next_state = 'reset_state'
@@ -612,9 +613,9 @@ class MessageEnterSignatureForSignatureToTheAnswerButton(BaseMessage):
     async def _set_answer_logic(self, update, state: FSMContext):
         reply_text, next_state = self.reply_text, self.next_state
         with self.dbase:
-            wb_user = self.tables.wildberries.get_or_none(user_id=update.from_user.id)
-            wb_user.signature_to_answer = update.text
-            wb_user.save()
+            if wb_user := self.tables.wildberries.get_or_none(user_id=update.from_user.id):
+                wb_user.signature_to_answer = update.text
+                wb_user.save()
         #TODO логика записи подписи в wildberries
 
         await self.bot.delete_message(chat_id=update.from_user.id, message_id=update.message_id)
@@ -642,9 +643,10 @@ class SignatureToTheAnswer(BaseButton, Utils):
         return {message.state_or_key: message for message in messages}
 
     async def _set_answer_logic(self, update, state: FSMContext):
+        signature = self.default_bad_text
         with self.dbase:
-            wb_user = self.tables.wildberries.get_or_none(user_id=update.from_user.id)
-            signature = wb_user.signature_to_answer
+            if wb_user := self.tables.wildberries.get_or_none(user_id=update.from_user.id):
+                signature = wb_user.signature_to_answer
 
         reply_text, next_state = f"<b>Ваша подпись:</b>\n{signature}\n\n" + self.reply_text, self.next_state
 
