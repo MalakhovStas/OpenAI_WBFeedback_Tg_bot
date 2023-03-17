@@ -23,7 +23,8 @@ class OpenAIManager:
         response = await self.openai.Completion.acreate(
           model="text-davinci-003",
           prompt=prompt,
-          temperature=0.9,
+          # temperature=0.9,
+          temperature=0,
           max_tokens=1800,
           top_p=1,
           frequency_penalty=0,
@@ -52,12 +53,14 @@ class OpenAIManager:
 
     async def reply_feedback(self, feedback: str) -> str:
         if await self._check_type_str(feedback):
-            return await self.answer(f'Напиши ответ на отзыв: {feedback[:100]}')
+            #TODO Разобраться почему я так написал feedback[:100]
+            return await self.answer(f'напиши ответ на отзыв: {feedback[:100]}')
 
     async def reply_many_feedbacks(self, feed_name: str, feedback: str) -> tuple:
         answer = None
         if await self._check_type_str(feedback):
-            answer = await self.answer(f'Напиши ответ на отзыв: {feedback[:100]}')
+            #TODO Разобраться почему я так написал feedback[:100]
+            answer = await self.answer(f'напиши ответ на отзыв: {feedback[:100]}')
         return feed_name, answer
 
     async def some_question(self, prompt: str) -> str:
