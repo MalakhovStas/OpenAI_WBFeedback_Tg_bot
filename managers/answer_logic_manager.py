@@ -79,18 +79,19 @@ class AnswerLogicManager:
                         button: BaseButton | None = None, message: BaseMessage | None = None,
                         insert: bool = False, main_menu: bool = True
                         ) -> tuple[str | None, InlineKeyboardMarkup | None, str | None]:
+        buttons = None
 
         if isinstance(update, CallbackQuery):
-            button = await self.main.button_search_and_action_any_collections(action='get', button_name=update.data)
-            buttons = button.children_buttons
+            if button := await self.main.button_search_and_action_any_collections(action='get', button_name=update.data):
+                buttons = button.children_buttons
         else:
             if update.get_command() == '/start':
                 message = None
                 button = self.main
                 buttons = button.children_buttons
             else:
-                message = self.main.message_store.get(await state.get_state())
-                buttons = message.children_buttons if message else None
+                if message := self.main.message_store.get(await state.get_state()):
+                    buttons = message.children_buttons
 
         if not button and not message:
             """ Если нет никаких данных всегда возвращает главное меню например по команде /start"""
@@ -133,9 +134,8 @@ class AnswerLogicManager:
 
         elif button.__class__.__name__ == 'GenerateNewResponseToFeedback' or \
                 message.__class__.__name__ == 'MessageEditFeedbackAnswer':
-            current_data = await state.get_data()
 
-            # parent_button = self.main.feedback_collection.get(current_data.get('previous_button'))
+            current_data = await state.get_data()
             parent_button = await self.main.button_search_and_action_any_collections(
                 action='get', button_name=current_data.get('previous_button'))
 

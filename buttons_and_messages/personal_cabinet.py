@@ -69,11 +69,15 @@ class PostFeedback(BaseButton):
         # print(feed_button.__class__.__name__.lstrip('Feedback'))
         # print(feed_button.any_data.get('answer'))
 
+        feedback_answer_text = feed_button.any_data.get('answer')
+        if signature:
+            feedback_answer_text += f"\n\n{signature}"
+
         result = await self.wb_api.send_feedback(
             seller_token=seller_token,
             x_supplier_id=feed_button.parent_name.lstrip('Supplier'),
             feedback_id=feed_button.__class__.__name__.lstrip('Feedback'),
-            feedback_answer__text=feed_button.any_data.get('answer') + f"\n\n{signature}",
+            feedback_answer__text=feedback_answer_text,
             update=update
         )
 
