@@ -70,6 +70,7 @@ class AccessControlMiddleware(BaseMiddleware):
     async def on_post_process_callback_query(self, call: CallbackQuery, post: list, callback_data: Dict) -> None:
         data = callback_data.get('state')
         if not call.data in ['GenerateNewResponseToFeedback', 'DontReplyFeedback']:
-            await data.update_data(previous_button=call.data)
+            await data.update_data(previous_button=call.data,
+                                   last_call_message_id=call.message.message_id)
 
 

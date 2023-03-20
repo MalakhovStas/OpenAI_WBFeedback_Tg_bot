@@ -280,11 +280,12 @@ class DBManager:
         wb_user = self.wb_user_get_or_none(user_id=user_id)
 
         if not self.tables.wildberries.update(**update_data).where(self.tables.wildberries.user_id == user_id).execute():
-            self.logger.error(self.sign + f'update_wb_user ERROR -> not update: {wb_user.__data__=}')
+            self.logger.error(self.sign + f'update_wb_user ERROR -> {user_id=} -> NOT UPDATE: {wb_user.__data__=} | '
+                                          f'{update_data=}')
 
         wb_user = self.wb_user_get_or_none(user_id=user_id)
-        self.logger.warning(self.sign + f'update_wb_user -> Telegram user_id: {wb_user.user_id} | '
-                                        f'{wb_user.WB_user_id=} | {update_data.keys()=}')
+        self.logger.debug(self.sign + f'update_wb_user -> Telegram user_id: {wb_user.user_id} | '
+                                      f'{wb_user.WB_user_id=} | {update_data.keys()=}')
 
         return wb_user
 

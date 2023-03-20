@@ -42,8 +42,5 @@ Base.ai, Base.bot, Base.wb_api = ai, bot, wb_api
 
 scheduler = AsyncIOScheduler()
 aufm = AutoUpdateFeedbackManager(dbase=dbase, storage=storage, bot=bot, wb_api=wb_api,
-                                 alm=alm, logger=logger, base=Base)
-func = aufm.finding_unanswered_feedbacks
+                                 alm=alm, logger=logger, base=Base, scheduler=scheduler)
 scheduler.add_job(aufm.finding_unanswered_feedbacks, 'interval', seconds=AUFM_INTERVAL_SECONDS)
-
-

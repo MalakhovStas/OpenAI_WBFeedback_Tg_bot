@@ -1,10 +1,12 @@
 import time
 from datetime import datetime, timedelta, timezone
+from typing import Any
 
 # from utils.exception_control import exception_handler_wrapper
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-from buttons_and_messages.personal_cabinet import Utils
+from buttons_and_messages.base_classes import Utils, DefaultButtonForAUFM
 from config import FACE_BOT
 
 
@@ -12,6 +14,8 @@ class AutoUpdateFeedbackManager:
     """ Класс Singleton для автоматического поиска новых отзывов в
     заданном интервале __interval и уведомлений о них"""
     __instance = None
+    # __default_answer_button = DefaultButtonForAUFM()
+
     __default_suffix = FACE_BOT + 'В вашем магазине\n <b>{supplier_title}</b> \n' \
                                   'появился новый отзыв, я сгенерировал ответ:\n\n'
 
@@ -20,15 +24,22 @@ class AutoUpdateFeedbackManager:
             cls.__instance = super().__new__(cls)
         return cls.__instance
 
-    def __init__(self, dbase, storage, bot, wb_api, alm, base, logger):
+    def __init__(self, dbase, storage, bot, wb_api, alm, base, scheduler, logger):
         self.dbase = dbase
         self.storage: MemoryStorage = storage
         self.bot = bot
         self.wb_api = wb_api
         self.alm = alm
         self.base = base
+        self.scheduler = scheduler
         self.logger = logger
         self.sign = self.__class__.__name__ + ': '
+
+    @staticmethod
+    def create_keyboard(button: Any) -> InlineKeyboardMarkup:
+        keyboard = InlineKeyboardMarkup()
+        keyboard.add(InlineKeyboardButton(text=button.name, callback_data=button.class_name))
+        return keyboard
 
     @staticmethod
     def check_data(data: str) -> int | None:
@@ -96,8 +107,18 @@ class AutoUpdateFeedbackManager:
                         # self.logger.error(f'{button=}')
 
                         text, keyboard, next_state = await self.alm.get_reply(button=button)
+                        # print(button)
+                        # print(button.button_id)
+                        # print(button.__class__.__name__)
+                        # btn_goto_feed = self.__default_answer_button(feed_id=button.button_id,
+                        #                                              feed_key_name=button.__class__.__name__)
+                        # keyboard = self.create_keyboard(btn_goto_feed)
+
                         text = self.__default_suffix.format(supplier_title=supplier_data.get('button_name')) + text
+                        # await self.bot.send_message(chat_id=user_id, text=text, reply_markup=keyboard,
+                        #                             disable_web_page_preview=True)
                         await self.bot.send_message(chat_id=user_id, text=text, disable_web_page_preview=True)
+
 
                     supplier_btn = await self.base.button_search_and_action_any_collections(
                         'get', button_name=supplier_name_key)
@@ -112,6 +133,7 @@ class AutoUpdateFeedbackManager:
         spent_time = (datetime.utcfromtimestamp(0) + timedelta(seconds=time.time() - start_time)).strftime('%H:%M:%S')
         self.logger.info(self.sign + f'finished -> finding_unanswered_feedbacks -> total_users: {len(wb_users)} | '
                                      f'{total_suppliers=} | {total_found_new_unanswered_feedbacks=} | {spent_time=}')
+        # self.scheduler.resume()
 
 
 """

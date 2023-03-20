@@ -127,11 +127,11 @@ class RequestsManager:
 
                 except Exception as exception:
                     text = f'try again' if step < 3 else 'brake requests return EMPTY DICT'
-                    self.logger.warning(self.sign + f'{step=} func aio_request -> request ERROR: {exception.__class__=}'
-                                                    f' | {exception.__traceback__=} | use {proxi=} -> {text}')
+                    self.logger.warning(self.sign + f'{step=} | func=aio_request -> ERROR {exception=} '
+                                                    f'| use {proxi=} -> {text}')
                     step += 1
                 else:
-                    self.logger.debug(self.sign + f'{step=} func aio_request return {str(result)[:100]=}...')
+                    self.logger.debug(self.sign + f'{step=} | func=aio_request return={str(result)[:100]}...')
                     break
         return result
 

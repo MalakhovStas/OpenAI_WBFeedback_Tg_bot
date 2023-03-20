@@ -38,6 +38,7 @@ class Base(ABC):
     button_store = dict()
     supplier_collection = dict()
     feedback_collection = dict()
+    aufm_feeds_collection = dict()
 
     def log(self, message, level: str | None = None):
         text = f'class: {self.__class__.__name__}: ' + message
@@ -558,6 +559,59 @@ class MessageEditFeedbackAnswer(BaseMessage):
         previous_button.reply_text = new_reply_text
 
         return new_reply_text, self.next_state
+
+
+class DefaultButtonForAUFM(BaseButton):
+    # feeds = dict()
+
+    def __call__(self, feed_id, feed_key_name):
+        # feed_id = kwargs.get('feed_id')
+        # feed_key_name = kwargs.get('feed_key_name')
+
+        self.name, long_feed_id = self.set_button_name(self.name, feed_id)
+        self.aufm_feeds_collection[long_feed_id] = feed_key_name
+
+        # print(self.aufm_feeds_collection)
+
+        return self
+
+    @staticmethod
+    def set_button_name(start_name: str, button_id: str | int) -> tuple[str, str]:
+        if isinstance(button_id, int):
+            button_id = str(button_id)
+        long_btn_id = button_id.zfill(7)
+        return start_name[:-7] + long_btn_id, long_btn_id
+
+    def _set_name(self) -> str:
+        return '↘ Перейти к отзыву #0000000'
+
+    def _set_next_state(self) -> str | None:
+        return FSMPersonalCabinetStates.edit_feedback_answer
+
+    async def _set_answer_logic(self, update: CallbackQuery, state: FSMContext | None = None) -> tuple[str | None, str | None]:
+        data = dict()
+        if state:
+            data = await state.get_data()
+
+        # long_feed_id = self.name[-7:]
+        long_feed_id = update.message.reply_markup.values.get('inline_keyboard')[0][0].text[-7:]
+        feed_key_name = self.aufm_feeds_collection.pop(long_feed_id)
+        # print('feed_key_name:', feed_key_name)
+
+        last_call_message_id = data.get('last_call_message_id')
+        # print(last_call_message_id)
+
+        feed_btn = await self.button_search_and_action_any_collections(action='pop', button_name=feed_key_name)
+        # print('feed_btn:', feed_btn)
+
+        await self.bot.delete_message(chat_id=update.from_user.id, message_id=update.message.message_id)
+        await self.bot.delete_message(chat_id=update.from_user.id, message_id=last_call_message_id)
+
+        reply_text = feed_btn.reply_text if feed_btn.reply_text else self.default_bad_text
+
+        self.children_buttons = feed_btn.children_buttons
+
+        return reply_text, self.next_state
 
 
 class Utils(Base):
