@@ -4,9 +4,13 @@ import time
 from aiogram.types import BotCommand
 
 from config import DEFAULT_COMMANDS, MAX_RESTART_BOT
-from loader import logger, bot, dp, dbase
+from loader import logger, bot, dp, aufm, scheduler
 from utils.admins_send_message import func_admins_message
 import middlewares
+import logging
+
+logging.basicConfig()
+logging.getLogger('apscheduler').setLevel(logging.DEBUG)
 
 
 async def start(restart=0):
@@ -19,6 +23,8 @@ async def start(restart=0):
         await bot.set_my_commands([BotCommand(command=item[0], description=item[1]) for item in DEFAULT_COMMANDS])
 
         await bot.delete_webhook(drop_pending_updates=True)
+
+        scheduler.start()
         await dp.start_polling(bot)
     except Exception as exc:
         logger.critical(f'CRITICAL_ERROR: {exc}')

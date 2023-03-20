@@ -6,10 +6,11 @@ class BaseTimezoneButton(BaseButton):
         return 'Время уведомлений успешно изменено'
 
     async def _set_answer_logic(self, update, state):
-        with self.dbase:
-            if wb_user := self.tables.wildberries.get_or_none(user_id=update.from_user.id):
-                wb_user.timezone_notification_times = self.name
-                wb_user.save()
+
+        self.dbase.update_wb_user(
+            user_id=update.from_user.id,
+            update_data={'timezone_notification_times': self.name}
+        )
         return self.reply_text, self.next_state
 
 
@@ -20,7 +21,7 @@ class KaliningradUtcUp2(BaseTimezoneButton):
 
 class MoscowUtcUp3(BaseTimezoneButton):
     def _set_name(self) -> str:
-        return 'Москва (UTC +2)'
+        return 'Москва (UTC +3)'
 
 
 class SamaraUtcUp4(BaseTimezoneButton):

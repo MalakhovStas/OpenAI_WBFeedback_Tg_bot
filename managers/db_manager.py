@@ -3,8 +3,12 @@ from datetime import datetime
 from types import FunctionType
 from typing import Any, Callable
 from aiogram.types import Message, CallbackQuery
+from peewee import JOIN
+
 from database.db_utils import Tables, db
 from config import ADMINS, TECH_ADMINS
+from loguru import logger
+
 
 """Все таблицы создаются тут - потому, что таблицы должны создаваться раньше чем экземпляр класса DBManager, иначе 
 будут ошибки при создании экземпляров классов кнопок и сообщений"""
@@ -13,26 +17,33 @@ db.create_tables(Tables.all_tables())
 
 class DBManager:
     """ Класс Singleton надстройка над ORM "peewee" для соблюдения принципа DRY и вынесения логики сохранения данных """
-    dbase = db
+    point_db_connection = db
     tables = Tables
 
     __instance = None
+    sign = None
+    logger = None
 
     def __new__(cls, *args, **kwargs):
         if cls.__instance is None:
             cls.__instance = super().__new__(cls)
+            cls.sign = cls.__name__ + ': '
+            cls.logger = logger
+            cls.decorate_methods()
+
         return cls.__instance
 
-    def __init__(self, logger):
-        self.logger = logger
-        self.sign = self.__class__.__name__ + ': '
-        self.decorate_methods()
+    def __init__(self):
+        pass
+        # self.logger = logger
+        # sign = __class__.__name__ + ': '
+        # self.decorate_methods()
 
     @staticmethod
     def db_connector(method: Callable) -> Callable:
         @functools.wraps(method)
         def wrapper(*args, **kwargs) -> Any:
-            with DBManager.dbase:
+            with DBManager.point_db_connection:
                 result = method(*args, **kwargs)
             return result
         return wrapper
@@ -43,11 +54,12 @@ class DBManager:
             if not attr_name.startswith('__') and attr_name not in ['db_connector', 'decorate_methods']:
                 method = cls.__getattribute__(cls, attr_name)
                 if type(method) is FunctionType:
+                    cls.logger.debug(cls.sign + f'decorate_methods -> db_connector wrapper -> method: {attr_name}')
                     setattr(cls, attr_name, cls.db_connector(method))
 
     # Таблицы должны создаваться раньше иначе будут ошибки при создании кнопок и сообщений
     # def create_tables(self):
-    #     self.dbase.create_tables(self.tables.all_tables())
+    #     self.point_db_connection.create_tables(self.tables.all_tables())
     #     self.logger.debug(self.sign + f'OK -> create tables:{self.tables.all_tables()} in DB')
 
     def get_all_messages(self):
@@ -69,7 +81,7 @@ class DBManager:
         admin = True if update.from_user.id in set(tuple(map(
             int, ADMINS)) if ADMINS else tuple() + tuple(map(int, TECH_ADMINS)) if TECH_ADMINS else tuple()) else False
 
-        with self.dbase:
+        with self.point_db_connection:
             user, fact_create = self.tables.users.get_or_create(user_id=update.from_user.id)
             if fact_create:
                 self.tables.wildberries.get_or_create(user_id=int(update.from_user.id))
@@ -163,7 +175,6 @@ class DBManager:
             self.logger.debug(self.sign + f'func count_users -> num users: {nums} WHERE date_join == date: {date}')
 
         else:
-            # nums = self.tables.users.select("SELECT Count() FROM users WHERE date_last_request >= ?", (date,))
             nums = self.tables.users.select().where(self.tables.users.date_last_request >= date).count()
             self.logger.debug(self.sign + f'func count_users -> num users: {nums} '
                                           f'WHERE date_last_request == date: {date}')
@@ -207,7 +218,78 @@ class DBManager:
                                       f'user_id:{update.from_user.id} | '
                                       f'last_request_data: {text_last_request}')
 
-    """Ниже методы работы с WBManager"""
+    """Методы работы с таблицей buttons"""
+
+    def button_get_or_create(self, button_id: int, button_data: dict) -> Tables.buttons | None:
+        button, fact_create = self.tables.buttons.get_or_create(button_id=button_id)
+        if button and button_data:
+            button.parent_id = button_data.get('parent_id')
+            button.name = button_data.get('name')
+            button.callback = button_data.get('callback')
+            button.reply_text = button_data.get('reply_text')
+            button.save()
+        if fact_create:
+            self.logger.debug(self.sign + f'create new {button.name=} | {button_data=}')
+        else:
+            self.logger.debug(self.sign + f'update {button.name=} | {button_data=}')
+        return button
+
+    def update_button(self, button_id: int, update_data: dict) -> Tables.buttons | None:
+        button = self.tables.buttons.get_or_none(button_id=button_id)
+
+        if not self.tables.buttons.update(**update_data).where(self.tables.buttons.button_id == button_id).execute():
+            self.logger.warning(self.sign + f'update_button ERROR -> not update: {button.__data__=}')
+
+        button = self.tables.buttons.get_or_none(button_id=button_id)
+        self.logger.debug(self.sign + f'update_button -> {button.name=} | {update_data=}')
+        return button
+
+    """Методы работы с таблицей messages"""
+
+    def message_get_or_create(self, button_id: int, message_data: dict) -> Tables.messages | None:
+        message, fact_create = self.tables.messages.get_or_create(button_id=button_id)
+        if message:
+            message.state_or_key = message_data.get('state_or_key')
+            message.reply_text = message_data.get('reply_text')
+            message.children_buttons = message_data.get('children_buttons')
+            if fact_create:
+                self.logger.debug(self.sign + f'create new {message.state_or_key=} | {message_data=}')
+            else:
+                self.logger.debug(self.sign + f'update {message.state_or_key=} | {message_data=}')
+        return message
+
+    """ Методы работы с таблицей wildberries"""
+    def select_all_wb_users(self):
+        wb_users = list(self.tables.wildberries.select())
+        # query = (self.tables.wildberries
+        #          .select()
+        #          .join(self.tables.users, JOIN.INNER)
+        #          .switch(self.tables.wildberries.user_id)
+        #  )
+        # for row in query:
+        #     print(row.__dict__)
+        # print(row.notification_times)
+        return wb_users
+
+    def wb_user_get_or_none(self, user_id: int) -> Tables.wildberries | None:
+        wb_user = self.tables.wildberries.get_or_none(user_id=user_id)
+        # self.logger.info(self.sign + f' wb_user_get_or_none {wb_user=}')
+        return wb_user
+
+    def update_wb_user(self, user_id: int, update_data: dict) -> Tables.wildberries | None:
+        wb_user = self.wb_user_get_or_none(user_id=user_id)
+
+        if not self.tables.wildberries.update(**update_data).where(self.tables.wildberries.user_id == user_id).execute():
+            self.logger.error(self.sign + f'update_wb_user ERROR -> not update: {wb_user.__data__=}')
+
+        wb_user = self.wb_user_get_or_none(user_id=user_id)
+        self.logger.warning(self.sign + f'update_wb_user -> Telegram user_id: {wb_user.user_id} | '
+                                        f'{wb_user.WB_user_id=} | {update_data.keys()=}')
+
+        return wb_user
+
+    """Методы работы с WBManager"""
+
     def save_phone_number_and_sms_token(self, phone_number, sms_token, user_id):
         if wb_user := self.tables.wildberries.get_or_none(user_id=user_id):
             wb_user.phone = phone_number
@@ -228,11 +310,12 @@ class DBManager:
             wb_user.save()
 
     def save_wb_user_id(self, wb_user_id, user_id):
-        self.logger.info(self.sign + f'save wb_user_id: {wb_user_id}')
+        self.logger.debug(self.sign + f'check {wb_user_id=} | {user_id=}')
         if wb_user := self.tables.wildberries.get_or_none(user_id=user_id):
             if not wb_user.WB_user_id or wb_user.WB_user_id != wb_user_id:
                 wb_user.WB_user_id = wb_user_id
                 wb_user.save()
+                self.logger.info(self.sign + f'save wb_user_id: {wb_user_id}')
 
     def save_suppliers(self, suppliers: dict, user_id):
         self.logger.info(self.sign + f'save suppliers: {suppliers}')
@@ -252,13 +335,14 @@ class DBManager:
 
     def save_unanswered_feedbacks(self, unanswered_feedbacks: dict, user_id):
         """ Сохранение отзывов в БД -> wildberries -> unanswered_feedbacks """
-        self.logger.info(self.sign + f'save unanswered_feedbacks: {unanswered_feedbacks}')
         wb_user = self.tables.wildberries.get_or_none(user_id=user_id)
         if wb_user:
             feedback_in_db = wb_user.unanswered_feedbacks
             if feedback_in_db and isinstance(feedback_in_db, dict):
-                self.logger.info(self.sign + f'update unanswered_feedbacks num feeds: {len(unanswered_feedbacks)}')
                 wb_user.unanswered_feedbacks = {**feedback_in_db, **unanswered_feedbacks}
+                self.logger.info(self.sign + f'update unanswered_feedbacks: {len(feedback_in_db)=} | '
+                                             f'{len(unanswered_feedbacks)=} total: {len(wb_user.unanswered_feedbacks)}')
+
             else:
                 wb_user.unanswered_feedbacks = unanswered_feedbacks
                 self.logger.info(self.sign + f'save num unanswered_feedbacks: {len(unanswered_feedbacks)} '

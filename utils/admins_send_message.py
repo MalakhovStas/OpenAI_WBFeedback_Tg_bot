@@ -10,6 +10,9 @@ async def func_admins_message(update=None, exc=None, message=None, disable_previ
     """ Отправляет сообщения об ошибках и состоянии бота администраторам, если их id указаны в
         ADMINS или TECH_ADMINS файла .env """
     try:
+        user_name = update.from_user.first_name if update else 'OpenAIManager_line_52'
+        user_id = update.from_user.id if update else 'OpenAIManager_line_52'
+
         if ADMINS or TECH_ADMINS:
             if exc:
                 if message:
@@ -26,8 +29,8 @@ async def func_admins_message(update=None, exc=None, message=None, disable_previ
                         await asyncio.sleep(0.033)
                         await bot.send_message(chat_id=admin,
                                                text='&#9888 <b><i>ERROR</i></b> &#9888\n'
-                                                    f'<b>User_name</b>:    {update.from_user.first_name}\n'
-                                                    f'<b>User_id</b>:    {update.from_user.id}\n'
+                                                    f'<b>User_name</b>:    {user_name}\n'
+                                                    f'<b>User_id</b>:    {user_id}\n'
                                                     f'<b>File</b>:    <i>{file}</i>\n'
                                                     f'<b>Func</b>:    <i>{func}</i>\n'
                                                     f'<b>Line</b>:    {line}\n'

@@ -17,9 +17,11 @@ MAX_RESTART_BOT = 3
 """ Токен и имя телеграм бота """
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 BOT_NIKNAME = os.getenv('BOT_NIKNAME')
+FACE_BOT = '🤖 '
 
-""" Токен ChatGPT """
+""" Токен ChatGPT и настройки таймаут для openai """
 OpenAI_TOKEN = os.getenv('OPENAI_API_KEY')
+OpenAI_TIMEOUT = 20
 
 """ QIWI """
 # https://developer.qiwi.com/ru/payments/#test_data_card
@@ -42,6 +44,10 @@ DEFAULT_COMMANDS = (
     ('school', 'Школа')
 )
 
+ADVERT_BID_BOT = 'https://t.me/AdsWbbot'
+BOT_POS = 'https://t.me/WBpositionTOP_bot'
+SCHOOL = 'https://marpla.pro/courses'
+
 """ Конфигурация базы данных """
 if not os.getenv('PG_DATABASE'):
     # DATABASE_CONFIG = ('sqlite', {'database': 'database/database.db'})
@@ -61,7 +67,7 @@ debug_format = '{time:DD-MM-YYYY at HH:mm:ss} | {level: <8} | file: {file: ^30} 
 logger_common_args = {
     'diagnose': True,
     'backtrace': False,
-    'rotation': '500 kb',
+    'rotation': '10 Mb',
     'retention': 1,
     'compression': 'zip'
 }
@@ -88,8 +94,15 @@ FLOOD_CONTROL_NUM_ALERTS = 10
 """ Время остановки обслуживания пользователя для защиты от флуда в секундах """
 FLOOD_CONTROL_STOP_TIME = 60
 
-""" Количество запрашиваемых отзывов в одном запросе к Wildberries"""
+""" Количество(+общее(игнор + не отв) кол-во в БД) запрашиваемых отзывов в одном запросе к Wildberries"""
 WB_TAKE = 10
+
+""" Настройка планировщика задач apscheduler, время между запуском 
+    AutoUpdateFeedbackManager -> finding_unanswered_feedbacks - интервал обновления отзывов """
+AUFM_INTERVAL_SECONDS = 60*60
+
+""" Количество кнопок-отзывов для вывода пользователю вне зависимости от их кол-ва в БД """
+NUM_FEED_BUTTONS = 10
 
 """ Настройки прокси """
 # USE_PROXI = False

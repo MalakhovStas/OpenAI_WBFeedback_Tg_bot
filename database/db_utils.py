@@ -6,7 +6,6 @@ from peewee import *
 from peewee import ModelBase
 
 from config import DATABASE_CONFIG
-# from playhouse.sqlite_ext import JSONField
 from playhouse.sqlite_ext import JSONField, SqliteDatabase
 
 my_json_dumps = functools.partial(json.dumps, ensure_ascii=False)
@@ -27,8 +26,8 @@ class Button(Model):
     reply_text = TextField(null=True)
     url = CharField(max_length=511, null=True)
     next_state = CharField(null=True)
-    children = JSONField(null=True)  # Разобраться с JSON других моделей
-    messages = JSONField(null=True)  # Разобраться с JSON других моделей
+    children = JSONField(null=False, default=list())
+    messages = JSONField(null=False, default=list())
 
     class Meta:
         database = db
@@ -42,7 +41,7 @@ class Message(Model):
     state_or_key = CharField(null=True)
     reply_text = TextField(null=True)
     next_state = CharField(null=True)
-    children_buttons = JSONField(null=True)  # Разобраться с JSON других моделей
+    children_buttons = JSONField(null=False, default=list())
 
     class Meta:
         database = db
@@ -59,7 +58,6 @@ class Users(Model):
 
     referer_id = IntegerField(null=True)  # Телеграм id пользователя по чьей ссылке пришел этот пользователь
     date_join = DateTimeField(default=datetime.now(), null=False)  # Два поля для одного и того-же
-    # registered = DateTimeField(default=datetime.now(), null=False)  # Два поля для одного и того-же
 
     access = CharField(default='allowed', null=False)  # Режим доступа к боту
     start_time_limited = IntegerField(null=True)  # Время начала блокировки пользователя используется в middleware
@@ -107,38 +105,11 @@ class Wildberries(Model):
         db_table = 'wildberries'
 
 
-# class Supplier(Model):
-#     user_id = ForeignKeyField(Users, to_field='user_id', related_name='suppliers', on_delete='CASCADE')
-#     x_supplier_id = CharField(primary_key=True, unique=True)
-#     name = CharField()
-#     callback = CharField(null=True)
-#
-#     class Meta:
-#         database = db
-#         order_by = 'user_id'
-#         db_table = 'suppliers'
-#
-#
-# class Feedback(Model):
-#     user_id = ForeignKeyField(Users, to_field='user_id', related_name='suppliers', on_delete='CASCADE')
-#     x_supplier_id = ForeignKeyField(Supplier, to_field='x_supplier_id', related_name='feedbacks', on_delete='CASCADE')
-#     feedback_id = CharField(primary_key=True, unique=True)
-#     generate_answer = CharField(null=True)
-#     ignore_feedback = BooleanField(null=False, default=False)
-#
-#     class Meta:
-#         database = db
-#         order_by = 'user_id'
-#         db_table = 'feedbacks'
-
-
 class Tables:
     users = Users
     buttons = Button
     messages = Message
     wildberries = Wildberries
-    # suppliers = Supplier
-    # feedbacks = Feedback
 
     @classmethod
     def all_tables(cls):
