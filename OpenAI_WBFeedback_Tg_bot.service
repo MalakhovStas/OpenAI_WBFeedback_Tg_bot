@@ -1,3 +1,9 @@
+# Для автоматического запуска бота при перезагрузке сервера копия этого файла
+# должна лежать в папке /etc/systemd/system/
+# команда для копирования файла в нужную категорию cp OpenAI_WBFeedback_Tg_bot.service /etc/systemd/system/
+# systemctl enable OpenAI_WBFeedback_Tg_bot - это команда в регистрации автозапуска бота при рестарте
+# service OpenAI_WBFeedback_Tg_bot start - запуск бота / stop
+
 [Unit]
 Description=OpenAI_WBFeedback_Tg_bot
 [Service]

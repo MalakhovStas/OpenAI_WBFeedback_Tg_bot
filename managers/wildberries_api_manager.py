@@ -124,7 +124,7 @@ class WBAPIManager:
     #                 print("WBAPIManager decorate_methods2!!!", attr_name)
 
     @staticmethod
-    def check_data(data: str) -> str | None:
+    async def check_data(data: str) -> str | None:
         """ Удаляет из строки data все символы из table_symbols на выходе только цифры или None"""
         ru_alphabet = 'АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюя'
         en_alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
