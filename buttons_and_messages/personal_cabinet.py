@@ -63,7 +63,7 @@ class UpdateListFeedbacks(BaseButton, Utils):
             # await self.change_name_button(supplier_button, len(buttons) - 1)
             unfeeds_supplier = [feed for feed in wb_user.unanswered_feedbacks.values()
                                 if feed.get('supplier') == supplier_button.__class__.__name__]
-            await self.change_name_button(supplier_button, len(unfeeds_supplier))
+            await self.m_utils.change_name_button(supplier_button, len(unfeeds_supplier))
 
         self.children_buttons = buttons
         # self.children_buttons.append(self)

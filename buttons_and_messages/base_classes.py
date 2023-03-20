@@ -15,6 +15,7 @@ from managers.db_manager import DBManager
 from utils.states import FSMPersonalCabinetStates, FSMUtilsStates
 from utils import misc_utils
 
+
 class Base(ABC):
 
     # dbase = db
@@ -124,19 +125,7 @@ class Base(ABC):
                          f'| func: button_search_and_action_any_collections')
         return button
 
-    @staticmethod
-    async def change_name_button(button, num):
-        i_was = None
-        res_re = re.search(r'< \d+ >', button.name)
-        if res_re:
-            i_was = res_re.group(0)
-        was = i_was if i_was else '< 0 >'
-
-        will_be = f"< {num} >"
-        button.name = button.name.replace(was, will_be)
-        return button
-
-    # @classmethod
+    # @classmethod #TODO циркулярный импорт исправить
     # def decorate_methods_for_exception_control(cls):
     #     """Декорирует методы _set_answer_logic во всех классах для контроля исключений вызов этого метода в __init__
     #     базовых классов"""
@@ -522,7 +511,7 @@ class DontReplyFeedback(BaseButton):
         # await self.change_name_button(supplier_button, len(self.children_buttons) - 1)
         unfeeds_supplier = [feed for feed in wb_user.unanswered_feedbacks.values()
                             if feed.get('supplier') == supplier_button.__class__.__name__]
-        await self.change_name_button(supplier_button, len(unfeeds_supplier))
+        await self.m_utils.change_name_button(supplier_button, len(unfeeds_supplier))
 
         return supplier_button.reply_text, supplier_button.next_state
 
@@ -563,25 +552,13 @@ class MessageEditFeedbackAnswer(BaseMessage):
 
 
 class DefaultButtonForAUFM(BaseButton):
-    # feeds = dict()
 
     def __call__(self, feed_id, feed_key_name):
-        # feed_id = kwargs.get('feed_id')
-        # feed_key_name = kwargs.get('feed_key_name')
-
-        self.name, long_feed_id = self.set_button_name(self.name, feed_id)
+        self.name, long_feed_id = self.m_utils.set_button_name(self.name, feed_id)
         self.aufm_feeds_collection[long_feed_id] = feed_key_name
 
         # print(self.aufm_feeds_collection)
-
         return self
-
-    @staticmethod
-    def set_button_name(start_name: str, button_id: str | int) -> tuple[str, str]:
-        if isinstance(button_id, int):
-            button_id = str(button_id)
-        long_btn_id = button_id.zfill(7)
-        return start_name[:-7] + long_btn_id, long_btn_id
 
     def _set_name(self) -> str:
         return '↘ Перейти к отзыву #0000000'
@@ -643,7 +620,7 @@ class Utils(Base):
                          'Wildberries либо по смс на указанный номер телефона:'
             next_state = FSMUtilsStates.message_after_user_enters_sms_code
         else:
-            reply_text = "Ошибка введите номер телефона"
+            reply_text = "Ошибка ввода данных, пожалуйста введите номер телефона"
             next_state = None
         return reply_text, next_state
 

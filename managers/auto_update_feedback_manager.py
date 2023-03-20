@@ -1,13 +1,11 @@
 import time
 from datetime import datetime, timedelta, timezone
-from typing import Any
 
 # from utils.exception_control import exception_handler_wrapper
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-
 from buttons_and_messages.base_classes import Utils, DefaultButtonForAUFM
 from config import FACE_BOT
+from utils import misc_utils
 
 
 class AutoUpdateFeedbackManager:
@@ -18,6 +16,7 @@ class AutoUpdateFeedbackManager:
 
     __default_suffix = FACE_BOT + 'В вашем магазине\n <b>{supplier_title}</b> \n' \
                                   'появился новый отзыв, я сгенерировал ответ:\n\n'
+    m_utils = misc_utils
 
     def __new__(cls, *args, **kwargs):
         if cls.__instance is None:
@@ -35,39 +34,6 @@ class AutoUpdateFeedbackManager:
         self.logger = logger
         self.sign = self.__class__.__name__ + ': '
 
-    @staticmethod
-    def create_keyboard(button: Any) -> InlineKeyboardMarkup:
-        keyboard = InlineKeyboardMarkup()
-        keyboard.add(InlineKeyboardButton(text=button.name, callback_data=button.class_name))
-        return keyboard
-
-    @staticmethod
-    def check_data(data: str) -> int | None:
-        ru_alphabet = 'АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюя'
-        en_alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
-        any_symbols = ' ~`"\'@#№$:;.,%^&?*|()[]{}-=+<>/\\'
-        table_symbols = ''.join([*ru_alphabet, *en_alphabet, *any_symbols])
-
-        for sym in table_symbols:
-            data = data.replace(sym, '')
-        return int(data) if data else None
-
-    def check_notification_time(self, notif_time: str, user_timezone: str) -> bool:
-        result = False
-        tm_zone = timezone(timedelta(hours=self.check_data(user_timezone)))
-        timezone_now = datetime.now().astimezone(tm_zone)
-        if notif_time == 'around_the_clock':
-            result = True
-        else:
-            notif = notif_time.split('-')
-            if len(notif) == 2 and all([sym.isdigit() for sym in notif]):
-                start, stop = map(int, notif)
-                if start <= timezone_now.hour < stop:
-                    result = True
-
-        self.logger.info(self.sign + f'check_notif_time {result=} | {notif_time=} | {str(timezone_now)=}')
-        return result
-
     async def finding_unanswered_feedbacks(self):
         start_time = time.time()
         total_suppliers = 0
@@ -76,8 +42,8 @@ class AutoUpdateFeedbackManager:
         self.logger.info(self.sign + f'i start looking -> finding_unanswered_feedbacks -> num users:{len(wb_users)}')
 
         for wb_user in wb_users:
-            if not self.check_notification_time(notif_time=wb_user.notification_times,
-                                                user_timezone=wb_user.timezone_notification_times):
+            if not await self.m_utils.check_notification_time(notif_time=wb_user.notification_times,
+                                                              user_timezone=wb_user.timezone_notification_times):
                 continue
 
             seller_token = wb_user.sellerToken
@@ -112,7 +78,7 @@ class AutoUpdateFeedbackManager:
                         # print(button.__class__.__name__)
                         # btn_goto_feed = self.__default_answer_button(feed_id=button.button_id,
                         #                                              feed_key_name=button.__class__.__name__)
-                        # keyboard = self.create_keyboard(btn_goto_feed)
+                        # keyboard = await self.create_keyboard(btn_goto_feed)
 
                         text = self.__default_suffix.format(supplier_title=supplier_data.get('button_name')) + text
                         # await self.bot.send_message(chat_id=user_id, text=text, reply_markup=keyboard,
@@ -122,7 +88,7 @@ class AutoUpdateFeedbackManager:
 
                     supplier_btn = await self.base.button_search_and_action_any_collections(
                         'get', button_name=supplier_name_key)
-                    await self.base.change_name_button(supplier_btn, supplier_total_feeds)
+                    await self.base.m_utils.change_name_button(supplier_btn, supplier_total_feeds)
 
                         # TODO Придумать как работать с кнопками
                         # await self.storage.update_data(chat=user_id, user=user_id,
