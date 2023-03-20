@@ -5,6 +5,7 @@ from types import FunctionType
 from aiogram.types import CallbackQuery, Message
 
 from config import WB_TAKE
+from utils import misc_utils
 
 
 @dataclass
@@ -51,6 +52,7 @@ class WBAPIManager:
     """ Класс Singleton для работы с API Wildberries и соблюдения принципа DRY """
 
     __instance = None
+    m_utils = misc_utils
 
     def __new__(cls, *args, **kwargs):
         if cls.__instance is None:
@@ -124,19 +126,6 @@ class WBAPIManager:
     #                 print("WBAPIManager decorate_methods2!!!", attr_name)
 
     @staticmethod
-    async def check_data(data: str) -> str | None:
-        """ Удаляет из строки data все символы из table_symbols на выходе только цифры или None"""
-        ru_alphabet = 'АБВГДЕЁЖЗИЙКЛМНОПРСТУФХЦЧШЩЪЫЬЭЮЯабвгдеёжзийклмнопрстуфхцчшщъыьэюя'
-        en_alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
-        any_symbols = ' ~`"\'@#№$:;.,%^&?*|()[]{}-=+<>/\\'
-        table_symbols = ''.join([*ru_alphabet, *en_alphabet, *any_symbols])
-
-        for sym in table_symbols:
-            data = data.replace(sym, '')
-
-        return data if data.isdigit() else None
-
-    @staticmethod
     async def get_token(response_request: dict) -> str | None:
         if response_request and response_request.get('success'):
             if response := response_request.get('response'):
@@ -148,8 +137,7 @@ class WBAPIManager:
         """Отправляем phone получаем token для ввода кода из sms"""
         sms_token = None
         user_id = user_id if user_id else update.from_user.id
-
-        if phone_number := await self.check_data(phone_number):
+        if phone_number := await self.m_utils.check_data(phone_number):
             response_request = await self.requests_manager(
                 url=self.wb_data.send_phone_url,
                 method='post',
@@ -166,8 +154,7 @@ class WBAPIManager:
         """Отправляем код из смс и token -> получаем sellerToken(сессионный в любой момент упадет)"""
         seller_token = None
         user_id = user_id if user_id else update.from_user.id
-
-        if sms_code := await self.check_data(sms_code):
+        if sms_code := await self.m_utils.check_data(sms_code):
             response_request = await self.requests_manager(
                 url=self.wb_data.send_code_from_sms_url,
                 method='post',
@@ -252,8 +239,17 @@ class WBAPIManager:
         self.logger.debug(self.sign + f'get_suppliers -> send sellerToken, response: {response_request}')
         if response_request:
             try:
-                suppliers = {f"Supplier{supplier['id']}": {'button_name': supplier['general']}
-                             for supplier in response_request[0]['result']['suppliers']}
+                suppliers = {
+                    f"Supplier{supplier['id']}":
+                        {'button_name': supplier['general'],
+                         'id': supplier['id'],  # "727553e6-1c20-45af-8f93-031dac28cb1e"
+                         'oldID': supplier['oldID'],  # 252218 нужно при парсинге
+                         'name': supplier['name'],  # "Vanijo"
+                         'general': supplier['general'],  # "Краев Иван Кириллович"
+                         'fullName': supplier['fullName']  # "Индивидуальный предприниматель Краев Иван Кириллович"
+                         } for supplier in response_request[0]['result']['suppliers']
+                }
+
             except KeyError as exc:
                 pass
             else:

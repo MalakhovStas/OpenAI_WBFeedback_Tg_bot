@@ -13,7 +13,7 @@ from config import BOT_NIKNAME, NUM_FEED_BUTTONS
 from database.db_utils import Tables
 from managers.db_manager import DBManager
 from utils.states import FSMPersonalCabinetStates, FSMUtilsStates
-
+from utils import misc_utils
 
 class Base(ABC):
 
@@ -26,6 +26,7 @@ class Base(ABC):
     bot = None  # Добавляется в loader.py
     wb_api = None  # Добавляется в loader.py
     wb_parsing = None  # Добавляется в loader.py
+    m_utils = misc_utils
     logger = logger
     # exception_controller = None  # Добавляется в loader.py
 
@@ -630,8 +631,9 @@ class Utils(Base):
     @classmethod
     async def send_request_for_sms_code(cls, update, state, phone):
 
-        phone = update.text.strip() if not phone else phone
-        if phone.startswith('+7') and phone.lstrip('+').isdigit() and len(phone) == 12:
+        input_string = update.text.strip() if not phone else phone
+        phone = await cls.m_utils.check_data(input_string)
+        if phone and phone.isdigit() and len(phone) == 11:
             sms_token = await cls.wb_api.send_phone_number(phone, update)
 
             cls.dbase.update_wb_user(user_id=update.from_user.id,
@@ -641,7 +643,7 @@ class Utils(Base):
                          'Wildberries либо по смс на указанный номер телефона:'
             next_state = FSMUtilsStates.message_after_user_enters_sms_code
         else:
-            reply_text = "Ошибка неправильный формат номера телефона, попробуйте ввести снова -> формат +7**********"
+            reply_text = "Ошибка введите номер телефона"
             next_state = None
         return reply_text, next_state
 
