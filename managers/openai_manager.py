@@ -18,8 +18,7 @@ class OpenAIManager:
     #                        f'новый ответ, или обратитесь в поддержку:' + \
     #                        f'@{SUPPORT.lstrip("https://t.me/")}'
 
-    __default_bad_answer = 'При генерации ответа произошла ошибка, попробуйте сгенерировать новый ответ'
-
+    __default_bad_answer = 'При генерации ответа произошла ошибка {exc}, попробуйте сгенерировать новый ответ'
 
     def __new__(cls, *args, **kwargs):
         if cls.__instance is None:
@@ -53,15 +52,15 @@ class OpenAIManager:
             if response and isinstance(response.get('choices'), Sequence):
                 answer = response['choices'][0]['text'].strip('\n')
             else:
-                answer = self.__default_bad_answer
+                answer = self.__default_bad_answer.format(exc='')
 
         except Exception as exception:
             # TODO Разобраться с циркулярным импортом
             # await func_admins_message(exc=exception)
             self.logger.warning(self.sign + f"{exception=}")
             # TODO Убрать сообщение об исключении пользователю
-            # answer = self.__default_bad_answer.format(exc=exception.__class__.__name__)
-            answer = self.__default_bad_answer
+            answer = self.__default_bad_answer.format(exc=exception.__class__.__name__)
+            # answer = self.__default_bad_answer
 
         text = answer.replace('\n', '')
         self.logger.info(self.sign + f"answer: {text[:100]}...")

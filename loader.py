@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 from aiogram import Bot, Dispatcher, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from loguru import logger
@@ -41,6 +43,10 @@ alm = AnswerLogicManager(ai=ai, bot=bot, logger=logger)
 Base.ai, Base.bot, Base.wb_api = ai, bot, wb_api
 
 scheduler = AsyncIOScheduler()
-aufm = AutoUpdateFeedbackManager(dbase=dbase, storage=storage, bot=bot, wb_api=wb_api,
-                                 alm=alm, logger=logger, base=Base, scheduler=scheduler)
-scheduler.add_job(aufm.finding_unanswered_feedbacks, 'interval', seconds=AUFM_INTERVAL_SECONDS)
+aufm = AutoUpdateFeedbackManager(dbase=dbase, storage=storage, bot=bot, wb_api=wb_api, alm=alm, logger=logger)
+
+# start_time_scheduler = datetime.now() + timedelta(seconds=5)
+# scheduler.add_job(aufm.finding_unanswered_feedbacks, trigger='interval',
+#                   next_run_time=start_time_scheduler, seconds=AUFM_INTERVAL_SECONDS)
+
+scheduler.add_job(aufm.finding_unanswered_feedbacks, trigger='interval', seconds=AUFM_INTERVAL_SECONDS)

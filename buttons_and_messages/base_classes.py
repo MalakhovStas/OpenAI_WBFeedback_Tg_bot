@@ -42,6 +42,8 @@ class Base(ABC):
     feedback_collection = dict()
     aufm_feeds_collection = dict()
 
+    updates_data = dict()
+
     def log(self, message, level: str | None = None):
         text = f'class: {self.__class__.__name__}: ' + message
 
@@ -115,13 +117,14 @@ class Base(ABC):
             collection.update({button_name: instance_button})
             button = instance_button
         elif action == 'get':
+            # print(f'длина коллекции {collection_name} тут:', len(collection), collection)
             button = collection.get(button_name)
         elif action == 'pop':
             button = collection.pop(button_name, None)
         else:
             button = None
 
-        cls.logger.debug(f'Base: result:{"OK" if button else "BAD"} -> return {button=} '
+        cls.logger.debug(f'Base: result:{"OK" if button else "BAD"} {action=} -> return {button=} '
                          f'| func: button_search_and_action_any_collections')
         return button
 
@@ -242,12 +245,19 @@ class BaseButton(Base):
 
             self.message_store.update(self.children_messages)
 
-            if self.__class__.__name__.startswith('Supplier'):
-                self.supplier_collection[self.__class__.__name__] = self
-            elif self.__class__.__name__.startswith('Feedback'):
-                self.feedback_collection[self.__class__.__name__] = self
+            # if self.__class__.__name__.startswith('Supplier'):
+            if self.class_name.startswith('Supplier'):
+                # self.supplier_collection[self.__class__.__name__] = self
+                self.supplier_collection[self.class_name] = self
+            # elif self.__class__.__name__.startswith('Feedback'):
+            elif self.class_name.startswith('Feedback'):
+                # self.feedback_collection[self.__class__.__name__] = self
+                self.feedback_collection[self.class_name] = self
+                # print('создал и добавляю кнопку в коллекцию:', self)
+                # print('длина коллекции feedbacks:', len(self.feedback_collection))
             else:
-                self.button_store[self.__class__.__name__] = self
+                # self.button_store[self.__class__.__name__] = self
+                self.button_store[self.class_name] = self
 
     def __str__(self):
         return f'button: {self.__class__.__name__} button_id: {self.button_id}, name: {self.name}, callback: ' \
@@ -430,13 +440,11 @@ class EditFeedback(BaseButton):
     async def _set_answer_logic(self, update: CallbackQuery, state: FSMContext | None = None):
         await self.bot.delete_message(chat_id=update.from_user.id, message_id=update.message.message_id)
 
-        data = dict()
-        if state:
-            data = await state.get_data()
-
+        data = await state.get_data() if state else dict()
+        # print('EditFeedback -> state data:', data)
         previous_button = await self.button_search_and_action_any_collections(action='get',
                                                                               button_name=data.get('previous_button'))
-
+        # print('EditFeedback:', previous_button)
         reply_text = previous_button.any_data.get('answer')
         self.reply_text = reply_text
 
@@ -457,6 +465,8 @@ class GenerateNewResponseToFeedback(BaseButton):
 
         previous_button = await self.button_search_and_action_any_collections(action='get',
                                                                               button_name=data.get('previous_button'))
+        # print("@@@@", data.get('previous_button'))
+        # print("@@@@", previous_button)
 
         reply_feedback = await self.ai.reply_feedback(previous_button.any_data.get('text'))
         previous_button.any_data['answer'] = reply_feedback
@@ -505,12 +515,13 @@ class DontReplyFeedback(BaseButton):
                          'unanswered_feedbacks': wb_user.unanswered_feedbacks}
         )
 
-        supplier_button.children_buttons.remove(removed_button)
+        if removed_button in supplier_button.children_buttons:
+            supplier_button.children_buttons.remove(removed_button)
+
         self.children_buttons = supplier_button.children_buttons
 
-        # await self.change_name_button(supplier_button, len(self.children_buttons) - 1)
         unfeeds_supplier = [feed for feed in wb_user.unanswered_feedbacks.values()
-                            if feed.get('supplier') == supplier_button.__class__.__name__]
+                            if feed.get('supplier') == supplier_button.class_name]
         await self.m_utils.change_name_button(supplier_button, len(unfeeds_supplier))
 
         return supplier_button.reply_text, supplier_button.next_state
@@ -574,16 +585,45 @@ class DefaultButtonForAUFM(BaseButton):
         # long_feed_id = self.name[-7:]
         long_feed_id = update.message.reply_markup.values.get('inline_keyboard')[0][0].text[-7:]
         feed_key_name = self.aufm_feeds_collection.pop(long_feed_id)
-        # print('feed_key_name:', feed_key_name)
 
-        last_call_message_id = data.get('last_call_message_id')
+        # print('feed_key_name:', feed_key_name)
+        # print(update.data)
+
+        # last_call_message_id = data.get('last_call_message_id')
+        previous_button = data.get('previous_button')
+        # print(f'в кнопке: {previous_button=} | {last_call_message_id=}')
+        # print(f'в кнопке: {previous_button=} | {self.updates_data.get("last_handler_sent_message_id")=}')
         # print(last_call_message_id)
 
-        feed_btn = await self.button_search_and_action_any_collections(action='pop', button_name=feed_key_name)
+        feed_btn = await self.button_search_and_action_any_collections(action='get', button_name=feed_key_name)
         # print('feed_btn:', feed_btn)
 
-        await self.bot.delete_message(chat_id=update.from_user.id, message_id=update.message.message_id)
-        await self.bot.delete_message(chat_id=update.from_user.id, message_id=last_call_message_id)
+        # last_any_handler_message_id = data.get('last_handler_sent_message_id')
+        # last_call_handler_message_id = data.get('last_handler_sent_from_call_message_id')
+        # if last_call_handler_message_id == last_any_handler_message_id:
+        #     msg_id = last_any_handler_message_id
+        #     msg_id2 = None
+        # else:
+        #     msg_id2 = last_any_handler_message_id
+            # msg_id = last_call_handler_message_id
+
+        # print(f'{self.updates_data.get("last_handler_sent_message_id")=}')
+        # print(f'{msg_id=}')
+        from aiogram.utils.exceptions import MessageToDeleteNotFound, MessageIdentifierNotSpecified
+        msg_id_to_delete = self.updates_data.get("last_handler_sent_message_id")
+        try:
+            await self.bot.delete_message(chat_id=update.from_user.id, message_id=msg_id_to_delete)
+            # if msg_id2:
+            #     await self.bot.delete_message(chat_id=update.from_user.id, message_id=msg_id2)
+
+        except (MessageToDeleteNotFound, MessageIdentifierNotSpecified) as exc:
+            self.logger.warning(self.base_sign + f'{msg_id_to_delete=} NOT found in chat_id: '
+                                                 f'{update.from_user.id} | {exc=} | {previous_button=}')
+
+        update.data = feed_key_name
+
+        # оно и так удаляется в handler
+        # await self.bot.delete_message(chat_id=update.from_user.id, message_id=update.message.message_id)
 
         reply_text = feed_btn.reply_text if feed_btn.reply_text else self.default_bad_text
 
@@ -713,7 +753,7 @@ class Utils(Base):
             await cls.bot.delete_message(chat_id=user_id, message_id=msg.message_id)
 
         """Возвращаем список объектов BaseButton кнопок-отзывов"""
-        return await cls.utils_get_or_create_buttons(collection=feedbacks, class_type='feedback',
+        return await cls.utils_get_or_create_buttons(collection=feedbacks, class_type='feedback', user_id=user_id,
                                                      update=update, supplier_name_key=supplier_name_key)
 
     @classmethod
@@ -726,9 +766,9 @@ class Utils(Base):
 
         for object_id, object_data in data.items():
             cls.logger.debug(f'Utils: create_button: {object_id}, supplier: {supplier_name_key}')
+
             if object_id.startswith('Feedback'):
-                dt, tm = object_data.get("createdDate")[:16].split("T")
-                dt_tm = ' '.join(('-'.join(dt.split('-')[::-1]), tm))
+                dt_tm = await cls.m_utils.reversed_date_time_feedback(object_data)
 
                 reply_text = '<b>Выберите отзыв:</b>' if class_type == 'Supplier' else \
                              f'<b>Товар:</b> {object_data.get("productName")}\n' \
@@ -737,7 +777,7 @@ class Utils(Base):
                              f'<b>Текст отзыва:</b> {object_data.get("text")}\n\n' \
                              f'<b>Ответ:</b>\n\n<code>{object_data.get("answer")}</code>'
 
-            parent_button = cls.button_search_and_action_any_collections(
+            parent_button = await cls.button_search_and_action_any_collections(
                 'get', button_name='WildberriesCabinet' if class_type == 'Supplier' else supplier_name_key)
 
             button = type(object_id, (BaseButton, ), {})(
@@ -749,7 +789,7 @@ class Utils(Base):
                 messages=cls.message_to_edit_feedback if class_type == 'Feedback' else None,
                 next_state=FSMPersonalCabinetStates.edit_feedback_answer if class_type == 'Feedback' else None
             )
-
+            # print('новый button:', button)
             # тут создаются новые кнопки отзывов
             children = cls.list_children_buttons if class_type == 'Feedback' else \
                 await cls.feedback_buttons_logic(supplier=data, update=update, user_id=user_id)
@@ -768,7 +808,8 @@ class Utils(Base):
                 button.name += f' < {len(unfeeds_supplier)} >'
 
             button.reply_text = '📭 <b>Отзывов пока нет</b>' if len(children)-1 <= 0 else reply_text
-
+        # print('len feedback_collection:', len(cls.feedback_collection))
+        # print('len supplier_collection:', len(cls.supplier_collection))
         return button
 
     @classmethod
@@ -787,7 +828,6 @@ class Utils(Base):
         for object_id, object_data in collection.items():
             """Проверяем существует ли объект-кнопка BaseButton В какой-либо коллекции"""
             button = await cls.button_search_and_action_any_collections(action='get', button_name=object_id)
-
             if not button:
                 """Если нет создаем новый объект"""
                 button = await cls.create_button_dynamically(
@@ -800,3 +840,25 @@ class Utils(Base):
         __buttons.append(GoToBack(new=False))
 
         return __buttons
+
+    @classmethod
+    async def utils_get_or_create_one_button(cls, button_name_key: str, button_data: dict | None = None,
+                                             class_type: str | None = None, supplier_name_key: str | None = None,
+                                             update: Message | CallbackQuery | None = None,
+                                             user_id: int | None = None) -> Any:
+        """ Проверяем существует ли объект-кнопка button_name_key в
+            какой-либо коллекции если нет создаёт новый объект """
+        user_id = user_id if user_id else update.from_user.id
+
+        class_type = class_type.title() if class_type else class_type
+        if class_type and class_type not in ['Supplier', 'Feedback']:
+            raise ValueError('class_type должен быть Supplier или Feedback')
+
+        button = await cls.button_search_and_action_any_collections(action='get', button_name=button_name_key)
+        if not button:
+            button_data = dict() if not button_data else button_data
+            button = await cls.create_button_dynamically(
+                data={button_name_key: button_data}, class_type=class_type, update=update, user_id=user_id,
+                supplier_name_key=supplier_name_key
+            )
+        return button

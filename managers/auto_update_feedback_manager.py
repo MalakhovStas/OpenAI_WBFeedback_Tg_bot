@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 # from utils.exception_control import exception_handler_wrapper
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
-from buttons_and_messages.base_classes import Utils, DefaultButtonForAUFM
+from buttons_and_messages.base_classes import Utils, Base, DefaultButtonForAUFM
 from config import FACE_BOT
 from utils import misc_utils
 
@@ -12,10 +12,12 @@ class AutoUpdateFeedbackManager:
     """ Класс Singleton для автоматического поиска новых отзывов в
     заданном интервале __interval и уведомлений о них"""
     __instance = None
-    # __default_answer_button = DefaultButtonForAUFM()
+    __default_answer_button = DefaultButtonForAUFM()
 
     __default_suffix = FACE_BOT + 'В вашем магазине\n <b>{supplier_title}</b> \n' \
                                   'появился новый отзыв, я сгенерировал ответ:\n\n'
+    base = Base
+    base_utils = Utils
     m_utils = misc_utils
 
     def __new__(cls, *args, **kwargs):
@@ -23,18 +25,18 @@ class AutoUpdateFeedbackManager:
             cls.__instance = super().__new__(cls)
         return cls.__instance
 
-    def __init__(self, dbase, storage, bot, wb_api, alm, base, scheduler, logger):
+    def __init__(self, dbase, storage, bot, wb_api, alm, logger):
         self.dbase = dbase
         self.storage: MemoryStorage = storage
         self.bot = bot
         self.wb_api = wb_api
         self.alm = alm
-        self.base = base
-        self.scheduler = scheduler
         self.logger = logger
         self.sign = self.__class__.__name__ + ': '
 
     async def finding_unanswered_feedbacks(self):
+        """ Выбирает всех пользователей из БД -> если у пользователя есть suppliers -> находит или создает
+            класс кнопку Supplier+supplier_id """
         start_time = time.time()
         total_suppliers = 0
         total_found_new_unanswered_feedbacks = 0
@@ -46,60 +48,58 @@ class AutoUpdateFeedbackManager:
                                                               user_timezone=wb_user.timezone_notification_times):
                 continue
 
-            seller_token = wb_user.sellerToken
+            wb_user_id = wb_user.WB_user_id
             user_id = wb_user.user_id
+            seller_token = wb_user.sellerToken
+            wb_user_suppliers = wb_user.suppliers if wb_user.suppliers else dict()
 
-            self.logger.debug(f'{wb_user=} | TG_{user_id=} | {wb_user.suppliers=}')
+            self.logger.debug(self.sign + f'{wb_user_id=} | TG_{user_id=} | {wb_user_suppliers=}')
 
-            for supplier_name_key, supplier_data in wb_user.suppliers.items():
+            for supplier_name_key, supplier_data in wb_user_suppliers.items():
                 total_suppliers += 1
-                # self.logger.debug(f'{supplier_name_key=}')
+                supplier_button = await self.base_utils.utils_get_or_create_one_button(
+                    user_id=user_id, button_name_key=supplier_name_key,
+                    button_data=supplier_data, class_type='Supplier'
+                )
+
                 feedbacks, supplier_total_feeds = await self.wb_api.get_feedback_list(
                     seller_token=seller_token, supplier=supplier_name_key, user_id=user_id)
 
-                # self.logger.debug(f'{feedbacks=}')
                 if feedbacks:
-                    buttons = await Utils.utils_get_or_create_buttons(
-                        collection=feedbacks, class_type='feedback',
+                    buttons = await self.base_utils.utils_get_or_create_buttons(
+                        collection=feedbacks, class_type='Feedback',
                         supplier_name_key=supplier_name_key, user_id=user_id
                     )
-                    # self.logger.debug(f'{buttons=}')
 
                     for button in buttons:
-                        if button.__class__.__name__ == 'GoToBack':
+                        if button.class_name == 'GoToBack':
                             continue
 
                         total_found_new_unanswered_feedbacks += 1
-                        # self.logger.error(f'{button=}')
 
                         text, keyboard, next_state = await self.alm.get_reply(button=button)
-                        # print(button)
-                        # print(button.button_id)
-                        # print(button.__class__.__name__)
-                        # btn_goto_feed = self.__default_answer_button(feed_id=button.button_id,
-                        #                                              feed_key_name=button.__class__.__name__)
-                        # keyboard = await self.create_keyboard(btn_goto_feed)
+
+                        btn_goto_feed = self.__default_answer_button(feed_id=button.button_id,
+                                                                     feed_key_name=button.class_name)
+                        """К каждому сообщению создаёт кнопку перейти к отзыву -> DefaultButtonForAUFM"""
+                        keyboard = await self.m_utils.create_keyboard(btn_goto_feed)
 
                         text = self.__default_suffix.format(supplier_title=supplier_data.get('button_name')) + text
-                        # await self.bot.send_message(chat_id=user_id, text=text, reply_markup=keyboard,
-                        #                             disable_web_page_preview=True)
-                        await self.bot.send_message(chat_id=user_id, text=text, disable_web_page_preview=True)
-
-
-                    supplier_btn = await self.base.button_search_and_action_any_collections(
-                        'get', button_name=supplier_name_key)
-                    await self.base.m_utils.change_name_button(supplier_btn, supplier_total_feeds)
-
-                        # TODO Придумать как работать с кнопками
-                        # await self.storage.update_data(chat=user_id, user=user_id,
-                        #                                data={'AUFManager_button': button.__class__.__name__})
-                        # print(await self.storage.get_data(chat=user_id, user=user_id))
-        # print(self.storage.data)
+                        aufm_sent_message = await self.bot.send_message(chat_id=user_id, text=text,
+                                                                        reply_markup=keyboard,
+                                                                        disable_web_page_preview=True)
+                        #todo это наверное не нужно
+                        # self.base.updates_data['last_aufm_sent_massage'] = aufm_sent_message
+                    if supplier_button:
+                        await self.base.m_utils.change_name_button(supplier_button, supplier_total_feeds)
+                        # supplier_button.children_buttons = {**supplier_button.children_buttons, **buttons}
+                        # print('supplier_button.children_buttons', supplier_button.children_buttons)
+                        if not supplier_button:
+                            supplier_button.children_buttons = buttons
 
         spent_time = (datetime.utcfromtimestamp(0) + timedelta(seconds=time.time() - start_time)).strftime('%H:%M:%S')
         self.logger.info(self.sign + f'finished -> finding_unanswered_feedbacks -> total_users: {len(wb_users)} | '
                                      f'{total_suppliers=} | {total_found_new_unanswered_feedbacks=} | {spent_time=}')
-        # self.scheduler.resume()
 
 
 """

@@ -37,6 +37,10 @@ class UpdateListFeedbacks(BaseButton, Utils):
         data = await state.get_data()
         user_id = update.from_user.id
         supplier_name_key = data.get('previous_button')
+
+        #todo убрать
+        # print('supplier_name_key', supplier_name_key)
+
         feedbacks = dict()
         buttons = []
 
@@ -53,7 +57,7 @@ class UpdateListFeedbacks(BaseButton, Utils):
                 collection=feedbacks, class_type='feedback', update=update,
                 supplier_name_key=supplier_name_key, user_id=user_id)
 
-            if not any(button.__class__.__name__.startswith('Feedback') for button in buttons):
+            if not any(button.class_name.startswith('Feedback') for button in buttons):
                 buttons = await self.feedback_buttons_logic(supplier=supplier_name_key, update=update)
 
         if supplier_name_key:

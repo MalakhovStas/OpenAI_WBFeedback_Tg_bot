@@ -60,3 +60,7 @@ async def create_keyboard(button: Any) -> InlineKeyboardMarkup:
     return keyboard
 
 
+async def reversed_date_time_feedback(object_data):
+    dt, tm = object_data.get("createdDate")[:16].split("T")
+    dt_tm = ' '.join(('-'.join(dt.split('-')[::-1]), tm))
+    return dt_tm

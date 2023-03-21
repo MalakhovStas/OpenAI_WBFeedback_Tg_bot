@@ -242,6 +242,7 @@ class WBAPIManager:
                 suppliers = {
                     f"Supplier{supplier['id']}":
                         {'button_name': supplier['general'] if supplier['general'] else supplier['name'],
+                         'mode': 'API',  # Режим работы с магазином API или PARSING
                          'id': supplier['id'],  # "727553e6-1c20-45af-8f93-031dac28cb1e"
                          'oldID': supplier['oldID'],  # 252218 нужно при парсинге
                          'name': supplier['name'],  # "Vanijo"

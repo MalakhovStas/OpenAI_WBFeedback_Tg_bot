@@ -69,8 +69,13 @@ class AccessControlMiddleware(BaseMiddleware):
     @utils.exception_control.exception_handler_wrapper
     async def on_post_process_callback_query(self, call: CallbackQuery, post: list, callback_data: Dict) -> None:
         data = callback_data.get('state')
+        # print(f'в пост апдейт: {call.data=} | {call.message.message_id=}')
+        # previous_message_id
         if not call.data in ['GenerateNewResponseToFeedback', 'DontReplyFeedback']:
-            await data.update_data(previous_button=call.data,
-                                   last_call_message_id=call.message.message_id)
+            await data.update_data(previous_button=call.data)#, last_call_message_id=call.message.message_id)
+
+        # if not call.data == 'DefaultButtonForAUFM':
+        #     await data.update_data(last_call_message_id=call.message.message_id)
+
 
 

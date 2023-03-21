@@ -26,30 +26,33 @@ class AnswerLogicManager:
     async def create_keyboard(self, buttons: list | None, insert: bool = False,
                               main_menu: bool = False, parent_button: Any | None = None) -> InlineKeyboardMarkup:
 
-        # print('2.AnswerLogicManager -> create_keyboard -> parent_button:', type(parent_button), parent_button)
-        parent_button_name = parent_button.__class__.__name__ if parent_button else 'MainMenu'
+        # print('AnswerLogicManager -> create_keyboard -> parent_button:', type(parent_button), parent_button)
+
+        parent_button = self.main if not parent_button else parent_button
 
         # if buttons == self.main.children_buttons:
         #     main_menu = False
         #     insert = True
         #
         # if not parent_button or parent_button == self.main:
+        #     insert = True
         #     main_menu = True
 
         keyboard = InlineKeyboardMarkup()
         if buttons:
             for index, button in enumerate(buttons, 1):
-                if button.__class__.__name__ == 'GoToBack':
+                if button.class_name == 'GoToBack':
                     main_menu = True
                     insert = True
 
                 # align = "left" if button.__class__.__name__.startswith('Feedback') else "center"
 
                 if len(buttons) == 1 or index < len(buttons):
-                    if button.__class__.__name__ == 'EditFeedback':
-                        text = f"\n{parent_button.any_data.get('answer')}" if parent_button else "Ошибка"
-                        keyboard.add(InlineKeyboardButton(
-                            text=button.name, switch_inline_query_current_chat=text))
+                    if button.class_name == 'EditFeedback':
+                        # print('alm EditFeedback:', button)
+                        text = f'\n' + (parent_button.any_data.get('answer') if parent_button
+                                        and parent_button.any_data else self.main.default_bad_text)
+                        keyboard.add(InlineKeyboardButton(text=button.name, switch_inline_query_current_chat=text))
                     else:
                         keyboard.add(
                             InlineKeyboardButton(text=button.name, callback_data=button.callback, url=button.url))
@@ -59,17 +62,7 @@ class AnswerLogicManager:
                         if insert and not main_menu else keyboard.add(InlineKeyboardButton(
                             text=button.name, callback_data=button.callback, url=button.url))
 
-        # if buttons != self.main.children_buttons:
-        # if parent_button_name == 'WildberriesCabinet' \
-        #         or parent_button_name.startswith('Supplier') \
-        #         or parent_button_name.startswith('Feedback'):
-        #
-        #     keyboard.add(InlineKeyboardButton(text='◀ Назад', callback_data='GoToBack'))  # if main_menu else keyboard.insert(back_inline_button)
-        #     insert = True
-
-        # print('create_keyboard - parent_button:', parent_button)
-        # print('create_keyboard - buttons:', buttons)
-        if any(button.__class__.__name__.startswith('Feedback') for button in buttons):
+        if any(button.class_name.startswith('Feedback') for button in buttons):
             keyboard.insert(InlineKeyboardButton(text='🌐 Обновить информацию', callback_data='UpdateListFeedbacks'))
 
         if main_menu:
@@ -142,48 +135,35 @@ class AnswerLogicManager:
                 main_menu = False
 
         else:
-            # self.logger.error(f'{button=}')
             if hasattr(button, 'children_buttons'):
                 buttons = button.children_buttons
-                # self.logger.error(f'{buttons=}')
 
             if hasattr(button.__class__, '_set_answer_logic'):
                 reply_text, next_state = await button._set_answer_logic(update, state)
 
                 if hasattr(button, 'children_buttons'):
                     buttons = button.children_buttons
-                    # self.logger.error(f'{buttons=}')
 
             else:
                 reply_text, next_state = button.reply_text, button.next_state
 
+        # print('AnswerLogicManager -> get_reply -> button:', type(button), button)
 
-
-        # if button.__class__.__name__.startswith('Feedback'):
-        #     if reply_text.endswith(BaseButton.default_generate_answer):
-        #         reply_text = await self.reply_feedback_button(button=button, reply_text=reply_text, update=update)
-        #     else:
-        # reply_text = button.reply_text + f"<code>{button.any_data.get('answer')}</code>"
-
-        if button.__class__.__name__.startswith('Feedback'):
+        if button.class_name.startswith('Feedback'):
             parent_button = button
 
-        elif button.__class__.__name__.startswith('Supplier'):
+        elif button.class_name.startswith('Supplier'):
             parent_button = await self.main.button_search_and_action_any_collections(
                 action='get', button_name='WildberriesCabinet')
 
-        elif button.__class__.__name__ == 'GenerateNewResponseToFeedback' or \
-                message.__class__.__name__ == 'MessageEditFeedbackAnswer':
+        elif (button and button.class_name == 'GenerateNewResponseToFeedback') or \
+                (message and message.class_name == 'MessageEditFeedbackAnswer'):
             parent_button = await self.main.button_search_and_action_any_collections(
                 action='get', button_name=current_data.get('previous_button'))
         else:
-            # parent_button = self.main
             parent_button = None
-            # parent_button = await self.main.button_search_and_action_any_collections(
-            #     action='get', button_name='WildberriesCabinet')
 
-        # print(f'1.AnswerLogicManager -> get_reply ->{ button.__class__.__name__=}')
-        # print(f'1.AnswerLogicManager -> get_reply -> parent_button: {type(parent_button)} | {parent_button}')
+        # print('AnswerLogicManager -> get_reply -> parent_button:', type(parent_button), parent_button)
 
         keyboard = await self.create_keyboard(
             buttons=buttons, insert=insert, main_menu=main_menu, parent_button=parent_button)
