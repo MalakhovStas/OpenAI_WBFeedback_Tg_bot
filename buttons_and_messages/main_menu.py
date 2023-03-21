@@ -42,7 +42,8 @@ class AnswerManagement(BaseButton):
         wb_cabinet = WildberriesCabinet(new=False)
         reply_text, next_state = await wb_cabinet._set_answer_logic(update, state)
         self.children_buttons = wb_cabinet.children_buttons
-        self.children_buttons.pop(-1)
+        if self.children_buttons:
+            self.children_buttons.pop(-1)
         return reply_text, next_state
 
 
