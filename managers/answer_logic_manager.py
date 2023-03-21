@@ -149,10 +149,10 @@ class AnswerLogicManager:
 
         # print('AnswerLogicManager -> get_reply -> button:', type(button), button)
 
-        if button.class_name.startswith('Feedback'):
+        if button and button.class_name.startswith('Feedback'):
             parent_button = button
 
-        elif button.class_name.startswith('Supplier'):
+        elif button and button.class_name.startswith('Supplier'):
             parent_button = await self.main.button_search_and_action_any_collections(
                 action='get', button_name='WildberriesCabinet')
 
