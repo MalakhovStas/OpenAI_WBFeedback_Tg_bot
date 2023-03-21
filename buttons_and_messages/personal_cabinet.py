@@ -6,7 +6,7 @@ from aiogram.types import CallbackQuery, Message
 from buttons_and_messages.time_zones import MoscowUtcUp3, KaliningradUtcUp2, SamaraUtcUp4, EkaterinburgAndAktauUtcUp5, \
     OmskAndNurSultanUtcUp6, KrasnoyarskUtcUp7, IrkutskUtcUp8, YakutskUtcUp9, VladivostokUtcUp10, MagadanUtcUp11, \
     KamchatkaUtcUp12
-from config import NUM_FEED_BUTTONS
+from config import NUM_FEED_BUTTONS, FACE_BOT
 from utils.states import FSMPersonalCabinetStates
 from .base_classes import Utils, BaseButton, BaseMessage, GoToBack
 
@@ -31,7 +31,7 @@ class UpdateListFeedbacks(BaseButton, Utils):
         return '🌐 Обновить информацию'
 
     def _set_reply_text(self) -> str | None:
-        return '<b>Выберите отзыв:</b>'
+        return FACE_BOT + '<b>Выберите отзыв:</b>'
 
     async def _set_answer_logic(self, update: CallbackQuery, state: FSMContext) -> tuple[str, str | None]:
         data = await state.get_data()
@@ -104,7 +104,7 @@ class WildberriesCabinet(BaseButton, Utils):
         return '🏪 Мои магазины'
 
     def _set_reply_text(self) -> str:
-        return '<b>Выберите магазин:</b>'
+        return FACE_BOT + '<b>Выберите магазин:</b>'
 
     def _set_next_state(self) -> str | None:
         return 'reset_state'
@@ -139,7 +139,7 @@ class AroundTheClock(BaseButton):
         return 'Круглосуточно'
 
     def _set_reply_text(self) -> str:
-        return 'Укажите ваш часовой пояс, чтобы я мог правильно отслеживать время 🕐'
+        return FACE_BOT + 'Укажите ваш часовой пояс, чтобы я мог правильно отслеживать время 🕐'
 
     def _set_children(self) -> list:
         return timezones + [GoToBack(new=False)]
@@ -158,7 +158,7 @@ class DayFrom9To18Hours(BaseButton):
         return 'День с 9 до 18 часов'
 
     def _set_reply_text(self) -> str:
-        return 'Укажите ваш часовой пояс, чтобы я мог правильно отслеживать время 🕐'
+        return FACE_BOT + 'Укажите ваш часовой пояс, чтобы я мог правильно отслеживать время 🕐'
 
     def _set_children(self) -> list:
         return timezones + [GoToBack(new=False)]
@@ -176,7 +176,7 @@ class FullDayFrom9To21Hours(BaseButton):
         return 'Полный день с 9 до 21 часа'
 
     def _set_reply_text(self) -> str:
-        return 'Укажите ваш часовой пояс, чтобы я мог правильно отслеживать время 🕐'
+        return FACE_BOT + 'Укажите ваш часовой пояс, чтобы я мог правильно отслеживать время 🕐'
 
     def _set_children(self) -> list:
         return timezones + [GoToBack(new=False)]
@@ -194,7 +194,7 @@ class MessageEnterYourselfSetUpNotificationTimes(BaseMessage):
         return 'FSMPersonalCabinetStates:enter_yourself_set_up_notification_times'
 
     def _set_reply_text(self) -> str:
-        return 'Укажите ваш часовой пояс, чтобы я мог правильно отслеживать время 🕐'
+        return FACE_BOT + 'Укажите ваш часовой пояс, чтобы я мог правильно отслеживать время 🕐'
 
     def _set_children(self) -> list:
         return timezones + [GoToBack(new=False)]
@@ -225,7 +225,7 @@ class EnterYourself(BaseButton):
         return 'Ввести самостоятельно'
 
     def _set_reply_text(self) -> str:
-        return 'Введите период времени в формате: 9 - 18'
+        return FACE_BOT + 'Введите период времени в формате: 9 - 18'
 
     def _set_children(self) -> list:
         return [GoToBack(new=False)]
@@ -243,7 +243,7 @@ class SetUpNotificationTimes(BaseButton):
         return '"⏰ Время получения уведомлений'
 
     def _set_reply_text(self) -> str:
-        return '<b>Выберите удобное время уведомления:</b>'
+        return FACE_BOT + '<b>Выберите удобное время уведомления:</b>'
 
     def _set_children(self) -> list:
         return [AroundTheClock(parent_name=self.__class__.__name__),
@@ -260,7 +260,7 @@ class MessageEnterSignatureForSignatureToTheAnswerButton(BaseMessage):
         return 'FSMPersonalCabinetStates:enter_signature'
 
     def _set_reply_text(self) -> str:
-        return 'Ваша новая подпись сохранена'
+        return FACE_BOT + 'Ваша новая подпись сохранена'
 
     def _set_next_state(self) -> str:
         return 'reset_state'
@@ -290,7 +290,7 @@ class SignatureToTheAnswer(BaseButton, Utils):
         return '✒ Управление подписями к ответу'
 
     def _set_reply_text(self) -> str:
-        return '<b>Введите новую подпись пожалуйста:</b>'
+        return FACE_BOT + '<b>Введите новую подпись пожалуйста:</b>'
 
     def _set_next_state(self) -> str:
         return FSMPersonalCabinetStates.enter_signature

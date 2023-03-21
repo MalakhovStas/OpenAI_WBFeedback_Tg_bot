@@ -1,5 +1,5 @@
 from buttons_and_messages.personal_cabinet import WildberriesCabinet, SetUpNotificationTimes, SignatureToTheAnswer, GoToBack
-from config import SUPPORT, BOT_NIKNAME
+from config import SUPPORT, BOT_NIKNAME, FACE_BOT
 from .base_classes import BaseButton, BaseMessage
 from utils.states import FSMMainMenuStates, FSMPersonalCabinetStates
 
@@ -10,7 +10,7 @@ class PersonalCabinet(BaseButton):
         return '⚙ Личный кабинет'
 
     def _set_reply_text(self) -> str:
-        return '<b>Выберите пункт меню:</b>'
+        return FACE_BOT + '<b>Выберите пункт меню:</b>'
 
     def _set_next_state(self) -> str:
         return FSMPersonalCabinetStates.personal_cabinet
@@ -27,23 +27,12 @@ class AnswerManagement(BaseButton):
         return '📝 Посмотреть неотвеченные отзывы'
 
     def _set_reply_text(self) -> str:
-        return 'У вас пока нет отзывов без ответа \n- > логика работы с WB в разработке'
-
-    # def _set_children(self) -> list:
-    #     children_buttons = self.data.children_buttons
-    #     print('children_buttons', children_buttons)
-    #     children_buttons.pop(-1)
-    #     return children_buttons
+        return FACE_BOT + 'У вас пока нет отзывов без ответа\n'
 
     async def _set_answer_logic(self, update, state):
-        # obj = WildberriesCabinet(new=False)
-        # reply_text, next_state = await obj
-        # print(reply_text, next_state)
         wb_cabinet = WildberriesCabinet(new=False)
         reply_text, next_state = await wb_cabinet._set_answer_logic(update, state)
-        self.children_buttons = wb_cabinet.children_buttons
-        if self.children_buttons:
-            self.children_buttons.pop(-1)
+        self.children_buttons = [button for button in wb_cabinet.children_buttons if button.class_name != 'GoToBack']
         return reply_text, next_state
 
 
@@ -53,16 +42,16 @@ class MessageOnceForCreateResponseManuallyButton(BaseMessage):
         return 'FSMMainMenuStates:create_response_manually'
 
     def _set_reply_text(self) -> str:
-        return 'Извините, произошла ошибка, попробуйте немного позже'
+        return FACE_BOT + 'Извините, произошла ошибка, попробуйте немного позже'
 
     def _set_next_state(self) -> str:
         return 'reset_state'
 
     async def _set_answer_logic(self, update, state) -> tuple[str | None, str | None]:
-        await self.bot.send_message(chat_id=update.from_user.id, text=self.default_generate_answer)
-
-        # reply_text = 'Я сгенерировал ответ на отзыв:\n\n' + await self.ai.some_question(question=update.text)
+        wait_msg = await self.bot.send_message(chat_id=update.from_user.id, text=self.default_generate_answer)
         reply_text = 'Я сгенерировал ответ на отзыв:\n\n' + await self.ai.reply_feedback(feedback=update.text)
+        await self.bot.delete_message(chat_id=update.from_user.id, message_id=wait_msg.message_id)
+
         return reply_text if reply_text else self.reply_text, self.next_state
 
 
@@ -72,7 +61,7 @@ class CreateResponseManually(BaseButton):
         return '✍ Сгенерировать текст по ключевикам'
 
     def _set_reply_text(self) -> str:
-        return 'Введите название товара и текст отзыва. Я сгенерирую ответ' \
+        return FACE_BOT + 'Введите название товара и текст отзыва, я сгенерирую ответ' \
                '\n\n<b>Пример:</b> Чехол на iPhone 11. Очень понравился чехол. ' \
                'Мягкий, плотно сидит и хорошо защищает камеру.'
 
@@ -90,12 +79,12 @@ class AboutBot(BaseButton):
         return 'ℹ О боте'
 
     def _set_reply_text(self) -> str:
-        return "Приветствую ✌️" \
+        return f"{FACE_BOT} Приветствую ✌️" \
                "\nЯ бот который призван помогать продавцам писать ответы на отзывы и тексты для карточек товаров. " \
                "Работаю с использованием технологий искусственного интеллекта ChatGPT. Прошу отнестись с пониманием " \
                "- я полностью бесплатный. Поэтому я иногда буду высылать анонсы полезных вебинаров для продавцов " \
                "Wildberries. У вас будет возможность просмотреть их и прокачать свои знания." \
-               "\n\nТехническая поддержка - https://t.me/marpla_help_bot" \
+               f"\n\nТехническая поддержка - {SUPPORT}" \
                "\n\nВступайте в наш телеграмм канал для продавцов Wildberries - https://t.me/marpla_wildberries" \
                "\n\nНаш YouTube канал с кучей полезной информации  - https://www.youtube.com/@marpla_ru"
 
@@ -118,7 +107,7 @@ class MainMenu(BaseButton):
         return 'ℹ Главное меню'
 
     def _set_reply_text(self) -> str:
-        return '<b>Выберите один из пунктов главного меню:</b>'
+        return FACE_BOT + '<b>Выберите один из пунктов главного меню:</b>'
 
     def _set_next_state(self) -> str:
         return 'reset_state'

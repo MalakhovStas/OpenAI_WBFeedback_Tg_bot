@@ -18,6 +18,7 @@ MAX_RESTART_BOT = 3
 BOT_TOKEN = os.getenv('BOT_TOKEN')
 BOT_NIKNAME = os.getenv('BOT_NIKNAME')
 FACE_BOT = '🤖 '
+# FACE_BOT = ''
 
 """ Токен ChatGPT и настройки таймаут для openai """
 OpenAI_TOKEN = os.getenv('OPENAI_API_KEY')

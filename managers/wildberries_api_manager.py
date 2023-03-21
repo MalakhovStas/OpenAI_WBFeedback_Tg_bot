@@ -356,10 +356,14 @@ class WBAPIManager:
         error = response_request.get('error')
         error_text = response_request.get('errorText')
 
-        self.logger.info(self.sign + f'func send_feedback {error=} | {error_text=}')
         if response_request and error is False:
-            return True
-        return False
+            result = True
+        else:
+            result = False
+
+        self.logger.info(self.sign + f'send_feedback {result=} | {error=} | {error_text=}')
+
+        return result
 
 
 

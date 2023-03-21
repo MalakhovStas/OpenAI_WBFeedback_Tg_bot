@@ -8,7 +8,7 @@ from aiogram.dispatcher import FSMContext
 from aiogram.types import Message, CallbackQuery
 from loguru import logger
 
-from config import BOT_NIKNAME, NUM_FEED_BUTTONS
+from config import BOT_NIKNAME, NUM_FEED_BUTTONS, FACE_BOT
 # from database.db_utils import db, Tables
 from database.db_utils import Tables
 from managers.db_manager import DBManager
@@ -32,9 +32,9 @@ class Base(ABC):
     # exception_controller = None  # Добавляется в loader.py
 
     default_bad_text = 'нет данных'
-    default_incorrect_data_input_text = 'Введены некорректные данные, попробуйте немного позже'
-    default_generate_answer = '✍ Генерирую ответ, немного подождите пожалуйста ...'
-    default_download_information = '🌐 Загружаю информацию, немного подождите пожалуйста ...'
+    default_incorrect_data_input_text = FACE_BOT + 'Введены некорректные данные, попробуйте немного позже'
+    default_generate_answer = FACE_BOT + '✍ Генерирую ответ, немного подождите пожалуйста ...'
+    default_download_information = FACE_BOT + '🌐 Загружаю информацию, немного подождите пожалуйста ...'
 
     message_store = dict()
     button_store = dict()
@@ -46,6 +46,8 @@ class Base(ABC):
 
     def log(self, message, level: str | None = None):
         text = f'class: {self.__class__.__name__}: ' + message
+
+        level = 'debug' if not level else level
 
         if level.lower() == 'info':
             self.logger.info(text)
@@ -378,6 +380,9 @@ class PostFeedback(BaseButton):
 
     async def _set_answer_logic(self, update, state: FSMContext | None = None):
         data = dict()
+        first_msg = await self.bot.send_message(chat_id=update.from_user.id,
+                                                text=FACE_BOT + '📩 Отправляю ответ на отзыв...')
+
         if state:
             data = await state.get_data()
 
@@ -387,49 +392,51 @@ class PostFeedback(BaseButton):
         wb_user = self.dbase.wb_user_get_or_none(user_id=update.from_user.id)
         seller_token = wb_user.sellerToken
         signature = wb_user.signature_to_answer
-        wb_user.unanswered_feedbacks.pop(feed_button.__class__.__name__)
-
-        self.dbase.update_wb_user(
-            user_id=update.from_user.id,
-            update_data={'unanswered_feedbacks': wb_user.unanswered_feedbacks}
-        )
 
         feedback_answer_text = feed_button.any_data.get('answer')
         if signature:
             feedback_answer_text += f"\n\n{signature}"
 
-        result, error_text = await self.wb_api.send_feedback(
+        result = await self.wb_api.send_feedback(
             seller_token=seller_token,
             x_supplier_id=feed_button.parent_name.lstrip('Supplier'),
-            feedback_id=feed_button.__class__.__name__.lstrip('Feedback'),
+            feedback_id=feed_button.class_name.lstrip('Feedback'),
             feedback_answer__text=feedback_answer_text,
             update=update
         )
 
-        ok_result = "🆗 Ответ на отзыв отправлен успешно"
-        bad_result = "⚠ Ошибка ответа на отзыв, попробуйте ещё раз"
-        msg = await self.bot.send_message(chat_id=update.from_user.id, text=ok_result if result else bad_result)
-        await asyncio.sleep(3)
-        await self.bot.delete_message(chat_id=update.from_user.id, message_id=msg.message_id)
+        if result:
+            wb_user.unanswered_feedbacks.pop(feed_button.class_name)
 
+            self.dbase.update_wb_user(
+                user_id=update.from_user.id,
+                update_data={'unanswered_feedbacks': wb_user.unanswered_feedbacks}
+            )
+
+            text_result = FACE_BOT + "🆗 Ответ на отзыв отправлен успешно"
+        else:
+            text_result = FACE_BOT + "⚠ Ошибка ответа на отзыв, попробуйте ещё раз"
+
+        await self.bot.delete_message(chat_id=update.from_user.id, message_id=first_msg.message_id)
+        second_msg = await self.bot.send_message(chat_id=update.from_user.id, text=text_result)
+        await asyncio.sleep(2)
+        await self.bot.delete_message(chat_id=update.from_user.id, message_id=second_msg.message_id)
         supplier_button = await self.button_search_and_action_any_collections(action='get',
                                                                               button_name=feed_button.parent_name)
-        self.log(f'result: {result} | error_text: {error_text}', level='warning')
-        self.log(f'supplier_button start len children_buttons: '
-                 f'{len(supplier_button.children_buttons)}', level='warning')
+        self.log(f'supplier_button start len children_buttons: {len(supplier_button.children_buttons)}')
 
         if result:
             await self.button_search_and_action_any_collections(action='pop', instance_button=feed_button)
             supplier_button.children_buttons.remove(feed_button)
-            self.log(f'supplier_button after remove len children_buttons: {len(supplier_button.children_buttons)}',
-                     level='warning')
+            self.log(f'supplier_button after remove len children_buttons: {len(supplier_button.children_buttons)}')
 
             was = re.search(r'< \d+ >', supplier_button.name).group(0)
             will_be = f"< {int(was.strip('<> ')) - 1} >"
             supplier_button.name = supplier_button.name.replace(was, will_be)
 
-        self.log(f'supplier_button: {supplier_button}', level='warning')
         self.children_buttons = supplier_button.children_buttons
+
+        self.log(f'supplier_button: {supplier_button}')
         return supplier_button.reply_text, supplier_button.next_state
 
 
@@ -640,8 +647,8 @@ class Utils(Base):
 
     @classmethod
     async def send_request_for_phone_number(cls, update, state):
-        reply_text = 'Пожалуйста, введите номер телефона, указанный при регистрации в кабинете Wildberries. ' \
-                     'Формат +7**********'
+        reply_text = FACE_BOT + 'Пожалуйста, введите номер телефона, указанный при регистрации в кабинете Wildberries.'\
+                                ' Формат +7**********'
         next_state = FSMUtilsStates.message_after_user_enters_phone
         return reply_text, next_state
 
@@ -656,11 +663,11 @@ class Utils(Base):
             cls.dbase.update_wb_user(user_id=update.from_user.id,
                                      update_data={'phone': phone, 'sms_token': sms_token})
 
-            reply_text = 'Пожалуйста, введите код который пришёл в кабинет покупателя ' \
-                         'Wildberries либо по смс на указанный номер телефона:'
+            reply_text = FACE_BOT + 'Пожалуйста, введите код который пришёл в кабинет покупателя ' \
+                                    'Wildberries либо по смс на указанный номер телефона:'
             next_state = FSMUtilsStates.message_after_user_enters_sms_code
         else:
-            reply_text = "Ошибка ввода данных, пожалуйста введите номер телефона"
+            reply_text = FACE_BOT + "Ошибка ввода данных, пожалуйста введите номер телефона"
             next_state = None
         return reply_text, next_state
 
@@ -761,7 +768,7 @@ class Utils(Base):
                                         supplier_name_key: str | None = None, user_id: int | None = None):
         """Рекурсивное создание кнопок кабинетов(supplier) и отзывов"""
         button = None
-        reply_text = '<b>Выберите отзыв:</b>'
+        reply_text = FACE_BOT + '<b>Выберите отзыв:</b>'
         user_id = user_id if user_id else update.from_user.id
 
         for object_id, object_data in data.items():
@@ -807,7 +814,7 @@ class Utils(Base):
                 # button.name += f' < {len(children)-1 if children else 0} >'
                 button.name += f' < {len(unfeeds_supplier)} >'
 
-            button.reply_text = '📭 <b>Отзывов пока нет</b>' if len(children)-1 <= 0 else reply_text
+            button.reply_text = FACE_BOT + '📭 <b>Отзывов пока нет</b>' if len(children)-1 <= 0 else reply_text
         # print('len feedback_collection:', len(cls.feedback_collection))
         # print('len supplier_collection:', len(cls.supplier_collection))
         return button
