@@ -4,9 +4,9 @@ from datetime import datetime
 
 from peewee import *
 from peewee import ModelBase
+from playhouse.sqlite_ext import JSONField, SqliteDatabase
 
 from config import DATABASE_CONFIG
-from playhouse.sqlite_ext import JSONField, SqliteDatabase
 
 my_json_dumps = functools.partial(json.dumps, ensure_ascii=False)
 databases = {

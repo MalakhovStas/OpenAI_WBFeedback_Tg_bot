@@ -22,6 +22,7 @@ class FSMPersonalCabinetStates(StatesGroup):
 class FSMUtilsStates(StatesGroup):
     message_after_user_enters_phone = State()
     message_after_user_enters_sms_code = State()
+    enter_supplier_id_mode = State()
 
 
 class FSMAdminStates(StatesGroup):

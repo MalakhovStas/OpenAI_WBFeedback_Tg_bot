@@ -9,15 +9,13 @@ from aiogram.types import Message, CallbackQuery
 from loguru import logger
 
 from config import BOT_NIKNAME, NUM_FEED_BUTTONS, FACE_BOT
-# from database.db_utils import db, Tables
 from database.db_utils import Tables
 from managers.db_manager import DBManager
-from utils.states import FSMPersonalCabinetStates, FSMUtilsStates
 from utils import misc_utils
+from utils.states import FSMPersonalCabinetStates, FSMUtilsStates
 
 
 class Base(ABC):
-
     # dbase = db
     tables = Tables
     dbase = DBManager()  # TODO попробовать добавить через loader.py
@@ -31,8 +29,9 @@ class Base(ABC):
     logger = logger
     # exception_controller = None  # Добавляется в loader.py
 
-    default_bad_text = 'нет данных'
-    default_incorrect_data_input_text = FACE_BOT + 'Введены некорректные данные, попробуйте немного позже'
+    default_bad_text = 'Нет данных'
+    default_service_in_dev = '🛠 Сервис в разработке, в ближайшее время функционал будет доступен'
+    default_incorrect_data_input_text = FACE_BOT + 'Введены некорректные данные - {text}'
     default_generate_answer = FACE_BOT + '✍ Генерирую ответ, немного подождите пожалуйста ...'
     default_download_information = FACE_BOT + '🌐 Загружаю информацию, немного подождите пожалуйста ...'
 
@@ -68,11 +67,11 @@ class Base(ABC):
         return reply_text
 
     def _set_next_state(self) -> str | None:
-        """Установка следующего состояния """
+        """Установка следующего состояния по умолчанию None"""
         return None
 
     def _set_children(self) -> list:
-        """ Установка дочерних кнопок """
+        """ Установка дочерних кнопок по умолчанию list()"""
         return list()
 
     @classmethod
@@ -158,7 +157,8 @@ class BaseMessage(Base):
         return cls.__instance
 
     def __init__(self, button: Any | int | None = None, state_or_key: str | None = None, reply_text: str | None = None,
-                 children_buttons: list | None = None, parent_name: str | None = None, parent_button: Any | None = None):
+                 children_buttons: list | None = None, parent_name: str | None = None,
+                 parent_button: Any | None = None):
 
         if self.__class__.__name__ != BaseMessage.__name__:
             self.class_name = self.__class__.__name__
@@ -491,7 +491,7 @@ class GenerateNewResponseToFeedback(BaseButton):
         await self.bot.delete_message(chat_id=update.from_user.id, message_id=message_waiting.message_id)
 
         new_reply_text = previous_button.reply_text.split('<b>Ответ:</b>\n\n')[0] + \
-            '<b>Ответ:</b>\n\n'+f"<code>{previous_button.any_data.get('answer')}</code>"
+            '<b>Ответ:</b>\n\n' + f"<code>{previous_button.any_data.get('answer')}</code>"
 
         previous_button.reply_text = new_reply_text
 
@@ -563,7 +563,7 @@ class MessageEditFeedbackAnswer(BaseMessage):
         self.children_buttons = previous_button.children_buttons
 
         new_reply_text = previous_button.reply_text.split('<b>Ответ:</b>\n\n')[0] + \
-            '<b>Ответ:</b>\n\n'+f"<code>{previous_button.any_data.get('answer')}</code>"
+            '<b>Ответ:</b>\n\n' + f"<code>{previous_button.any_data.get('answer')}</code>"
         previous_button.reply_text = new_reply_text
 
         return new_reply_text, self.next_state
@@ -584,7 +584,8 @@ class DefaultButtonForAUFM(BaseButton):
     def _set_next_state(self) -> str | None:
         return FSMPersonalCabinetStates.edit_feedback_answer
 
-    async def _set_answer_logic(self, update: CallbackQuery, state: FSMContext | None = None) -> tuple[str | None, str | None]:
+    async def _set_answer_logic(self, update: CallbackQuery, state: FSMContext | None = None
+                                ) -> tuple[str | None, str | None]:
         data = dict()
         if state:
             data = await state.get_data()
@@ -612,7 +613,7 @@ class DefaultButtonForAUFM(BaseButton):
         #     msg_id2 = None
         # else:
         #     msg_id2 = last_any_handler_message_id
-            # msg_id = last_call_handler_message_id
+        # msg_id = last_call_handler_message_id
 
         # print(f'{self.updates_data.get("last_handler_sent_message_id")=}')
         # print(f'{msg_id=}')
@@ -640,15 +641,14 @@ class DefaultButtonForAUFM(BaseButton):
 
 
 class Utils(Base):
-
     list_children_buttons = [PostFeedback(), EditFeedback(),
-                             GenerateNewResponseToFeedback(), DontReplyFeedback(), GoToBack(new=False)]
+                             GenerateNewResponseToFeedback(), DontReplyFeedback(), GoToBack()]
     message_to_edit_feedback = {FSMPersonalCabinetStates.edit_feedback_answer: MessageEditFeedbackAnswer()}
 
     @classmethod
     async def send_request_for_phone_number(cls, update, state):
-        reply_text = FACE_BOT + 'Пожалуйста, введите номер телефона, указанный при регистрации в кабинете Wildberries.'\
-                                ' Формат +7**********'
+        reply_text = FACE_BOT + 'Пожалуйста, введите номер телефона, указанный при регистрации в ' \
+                                'кабинете Wildberries. Формат +7**********'
         next_state = FSMUtilsStates.message_after_user_enters_phone
         return reply_text, next_state
 
@@ -672,9 +672,9 @@ class Utils(Base):
         return reply_text, next_state
 
     @classmethod
-    async def get_access_to_wb_api(cls, update, state, phone:  str | int | None = None,
+    async def get_access_to_wb_api(cls, update, state, phone: str | int | None = None,
                                    sms_code: str | int | None = None) -> tuple | str:
-
+        """ Для проверки или регистрации доступа к личному кабинету wildberries """
         wb_user = cls.dbase.wb_user_get_or_none(user_id=update.from_user.id)
         seller_token = wb_user.sellerToken
         passport_token = wb_user.passportToken
@@ -704,7 +704,7 @@ class Utils(Base):
 
     @classmethod
     async def suppliers_buttons_logic(cls, update: Message | CallbackQuery | None = None,
-                                      state: FSMContext | None = None, user_id: int | None = None):
+                                      state: FSMContext | None = None, user_id: int | None = None) -> list:
         suppliers = []
         user_id = user_id if user_id else update.from_user.id
         wb_user = cls.dbase.wb_user_get_or_none(user_id=update.from_user.id)
@@ -778,16 +778,16 @@ class Utils(Base):
                 dt_tm = await cls.m_utils.reversed_date_time_feedback(object_data)
 
                 reply_text = '<b>Выберите отзыв:</b>' if class_type == 'Supplier' else \
-                             f'<b>Товар:</b> {object_data.get("productName")}\n' \
-                             f'<b>Дата:</b> {dt_tm}\n' \
-                             f'<b>Оценка:</b> {object_data.get("productValuation")}\n' \
-                             f'<b>Текст отзыва:</b> {object_data.get("text")}\n\n' \
-                             f'<b>Ответ:</b>\n\n<code>{object_data.get("answer")}</code>'
+                    f'<b>Товар:</b> {object_data.get("productName")}\n' \
+                    f'<b>Дата:</b> {dt_tm}\n' \
+                    f'<b>Оценка:</b> {object_data.get("productValuation")}\n' \
+                    f'<b>Текст отзыва:</b> {object_data.get("text")}\n\n' \
+                    f'<b>Ответ:</b>\n\n<code>{object_data.get("answer")}</code>'
 
             parent_button = await cls.button_search_and_action_any_collections(
                 'get', button_name='WildberriesCabinet' if class_type == 'Supplier' else supplier_name_key)
 
-            button = type(object_id, (BaseButton, ), {})(
+            button = type(object_id, (BaseButton,), {})(
                 name=object_data.get('button_name'),
                 parent_name='WildberriesCabinet' if class_type == 'Supplier' else supplier_name_key,
                 parent_button=parent_button,
@@ -814,7 +814,7 @@ class Utils(Base):
                 # button.name += f' < {len(children)-1 if children else 0} >'
                 button.name += f' < {len(unfeeds_supplier)} >'
 
-            button.reply_text = FACE_BOT + '📭 <b>Отзывов пока нет</b>' if len(children)-1 <= 0 else reply_text
+            button.reply_text = FACE_BOT + '📭 <b>Отзывов пока нет</b>' if len(children) - 1 <= 0 else reply_text
         # print('len feedback_collection:', len(cls.feedback_collection))
         # print('len supplier_collection:', len(cls.supplier_collection))
         return button
@@ -869,3 +869,9 @@ class Utils(Base):
                 supplier_name_key=supplier_name_key
             )
         return button
+
+    # @classmethod
+    # async def first_enter_or_not_suppliers(cls, update, state, user_id, wb_user):
+    #     """ Предлагает выбрать режим работы по API, или ввести ID магазина """
+    #     cls.
+    #     await cls.bot.send_message(chat_id=user_id, text=FACE_BOT + 'Выберите:', reply_markup=[])

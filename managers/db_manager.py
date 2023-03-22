@@ -2,13 +2,12 @@ import functools
 from datetime import datetime
 from types import FunctionType
 from typing import Any, Callable
-from aiogram.types import Message, CallbackQuery
-from peewee import JOIN
 
-from database.db_utils import Tables, db
-from config import ADMINS, TECH_ADMINS
+from aiogram.types import Message, CallbackQuery
 from loguru import logger
 
+from config import ADMINS, TECH_ADMINS
+from database.db_utils import Tables, db
 
 """Все таблицы создаются тут - потому, что таблицы должны создаваться раньше чем экземпляр класса DBManager, иначе 
 будут ошибки при создании экземпляров классов кнопок и сообщений"""
@@ -77,7 +76,10 @@ class DBManager:
         self.tables.messages.truncate_table()
         self.tables.messages.bulk_create(list_models)
 
-    def get_or_create_user(self, update: Message | CallbackQuery) -> tuple:
+    def get_or_create_user(self, update: Message | CallbackQuery) -> tuple[tuple, bool | int]:
+        """ Если user_id не найден в таблице Users -> создаёт новые записи в
+            таблицах Users и Wildberries по ключу user_id """
+        fact_create_and_num_users = False
         admin = True if update.from_user.id in set(tuple(map(
             int, ADMINS)) if ADMINS else tuple() + tuple(map(int, TECH_ADMINS)) if TECH_ADMINS else tuple()) else False
 
@@ -85,6 +87,7 @@ class DBManager:
             user, fact_create = self.tables.users.get_or_create(user_id=update.from_user.id)
             if fact_create:
                 self.tables.wildberries.get_or_create(user_id=int(update.from_user.id))
+                fact_create_and_num_users = self.tables.users.select().count()
                 user.user_id = int(update.from_user.id)
                 user.username = update.from_user.username,
                 user.first_name = update.from_user.first_name,
@@ -94,8 +97,8 @@ class DBManager:
                 user.save()
 
         text = 'created new user' if fact_create else 'get user'
-        self.logger.debug(self.sign + f' {text.upper()}: {user.username} | user_id:{user.user_id}')
-        return user
+        self.logger.debug(self.sign + f' {text.upper()}: {user.username=} | {user.user_id=}')
+        return user, fact_create_and_num_users
 
     def get_all_users(self, id_only: bool = False, not_ban: bool = False) -> tuple:
         if not_ban and id_only:
@@ -279,9 +282,10 @@ class DBManager:
     def update_wb_user(self, user_id: int, update_data: dict) -> Tables.wildberries | None:
         wb_user = self.wb_user_get_or_none(user_id=user_id)
 
-        if not self.tables.wildberries.update(**update_data).where(self.tables.wildberries.user_id == user_id).execute():
-            self.logger.error(self.sign + f'update_wb_user ERROR -> {user_id=} -> NOT UPDATE: {wb_user.__data__=} | '
-                                          f'{update_data=}')
+        if not self.tables.wildberries.update(**update_data).where(
+                self.tables.wildberries.user_id == user_id).execute():
+            self.logger.error(self.sign + f'update_wb_user ERROR -> {user_id=} -> '
+                                          f'NOT UPDATE: {wb_user.__data__=} | {update_data=}')
 
         wb_user = self.wb_user_get_or_none(user_id=user_id)
         self.logger.debug(self.sign + f'update_wb_user -> Telegram user_id: {wb_user.user_id} | '

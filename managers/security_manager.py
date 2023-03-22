@@ -44,17 +44,32 @@ class SecurityManager:
 
     async def check_user(self, update: CallbackQuery | Message, user_data: dict | None) -> bool:
         """ Для проверки пользователя на предмет блокировки или создания нового """
-        text_user = f'user: {update.from_user.username} | user_id: {update.from_user.id}'
         await self.update_informer(update, user_data)
 
-        user = self.dbase.get_or_create_user(update=update)  # Именно тут создаётся new user
+        username = update.from_user.username
+        user_id = update.from_user.id
 
-        user_status = user.access if user else 'new user'
+        # Тут создаётся new user и wb_user
+        user, fact_create_and_num_users = self.dbase.get_or_create_user(update=update)
+
+        if fact_create_and_num_users:
+            from utils.admins_send_message import func_admins_message
+            contact = f'@{username}' if username else f'<a href="tg://user?id={user_id}">tg://user?id={user_id}</a>'
+            await func_admins_message(update=update, message=f'&#129395 <b>NEW USER</b>\n'
+                                                             f'<b>ID:</b> {user_id}\n'
+                                                             f'<b>Name:</b> {update.from_user.full_name}\n'
+                                                             f'<b>Contact:</b> {contact}\n'                         
+                                                             f'<b>Number in base:</b> {fact_create_and_num_users}')
+        if fact_create_and_num_users:
+            user_status = f'new user # {fact_create_and_num_users}'
+        else:
+            user_status = user.access
+
         if user_status == 'block':
-            self.logger.warning(self.sign + f'user_status -> {user_status.upper()} <- | {text_user}')
+            self.logger.warning(self.sign + f'user_status -> {user_status.upper()} <- | {username=} | {user_id=}')
             result = False
         else:
-            self.logger.info(self.sign + f'user_status -> {user_status.upper()} <- | {text_user}')
+            self.logger.info(self.sign + f'user_status -> {user_status.upper()} <- | {username=} | {user_id=}')
             result = True
 
         return result

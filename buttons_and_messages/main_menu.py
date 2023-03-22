@@ -1,7 +1,7 @@
-from buttons_and_messages.personal_cabinet import WildberriesCabinet, SetUpNotificationTimes, SignatureToTheAnswer, GoToBack
-from config import SUPPORT, BOT_NIKNAME, FACE_BOT
-from .base_classes import BaseButton, BaseMessage
+from buttons_and_messages.personal_cabinet import WildberriesCabinet, SetUpNotificationTimes, SignatureToTheAnswer
+from config import SUPPORT, FACE_BOT
 from utils.states import FSMMainMenuStates, FSMPersonalCabinetStates
+from .base_classes import BaseButton, BaseMessage
 
 
 class PersonalCabinet(BaseButton):
@@ -22,18 +22,19 @@ class PersonalCabinet(BaseButton):
 
 
 class AnswerManagement(BaseButton):
+    wb_cabinet = WildberriesCabinet(new=False)
 
     def _set_name(self) -> str:
         return '📝 Посмотреть неотвеченные отзывы'
 
-    def _set_reply_text(self) -> str:
-        return FACE_BOT + 'У вас пока нет отзывов без ответа\n'
+    def _set_next_state(self) -> str | None:
+        return self.wb_cabinet.next_state
 
-    async def _set_answer_logic(self, update, state):
-        wb_cabinet = WildberriesCabinet(new=False)
-        reply_text, next_state = await wb_cabinet._set_answer_logic(update, state)
-        self.children_buttons = [button for button in wb_cabinet.children_buttons if button.class_name != 'GoToBack']
-        return reply_text, next_state
+    def _set_reply_text(self) -> str:
+        return self.wb_cabinet.reply_text
+
+    def _set_children(self) -> list:
+        return [button for button in self.wb_cabinet.children_buttons if button.class_name != 'GoToBack']
 
 
 class MessageOnceForCreateResponseManuallyButton(BaseMessage):
@@ -62,8 +63,8 @@ class CreateResponseManually(BaseButton):
 
     def _set_reply_text(self) -> str:
         return FACE_BOT + 'Введите название товара и текст отзыва, я сгенерирую ответ' \
-               '\n\n<b>Пример:</b> Чехол на iPhone 11. Очень понравился чехол. ' \
-               'Мягкий, плотно сидит и хорошо защищает камеру.'
+                          '\n\n<b>Пример:</b> Чехол на iPhone 11. Очень понравился чехол. ' \
+                          'Мягкий, плотно сидит и хорошо защищает камеру.'
 
     def _set_next_state(self) -> str:
         return FSMMainMenuStates.create_response_manually
@@ -113,9 +114,8 @@ class MainMenu(BaseButton):
         return 'reset_state'
 
     def _set_children(self) -> list:
-        return [PersonalCabinet(parent_name=self.__class__.__name__),
-                AnswerManagement(parent_name=self.__class__.__name__),
-                CreateResponseManually(parent_name=self.__class__.__name__),
-                AboutBot(parent_name=self.__class__.__name__),
-                SupportButton(parent_name=self.__class__.__name__)]
-
+        return [PersonalCabinet(parent_name=self.class_name),
+                AnswerManagement(parent_name=self.class_name),
+                CreateResponseManually(parent_name=self.class_name),
+                AboutBot(parent_name=self.class_name),
+                SupportButton(parent_name=self.class_name)]

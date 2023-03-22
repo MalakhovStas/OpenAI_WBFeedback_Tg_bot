@@ -7,7 +7,7 @@ from buttons_and_messages.time_zones import MoscowUtcUp3, KaliningradUtcUp2, Sam
     OmskAndNurSultanUtcUp6, KrasnoyarskUtcUp7, IrkutskUtcUp8, YakutskUtcUp9, VladivostokUtcUp10, MagadanUtcUp11, \
     KamchatkaUtcUp12
 from config import NUM_FEED_BUTTONS, FACE_BOT
-from utils.states import FSMPersonalCabinetStates
+from utils.states import FSMPersonalCabinetStates, FSMUtilsStates
 from .base_classes import Utils, BaseButton, BaseMessage, GoToBack
 
 timezones = [KaliningradUtcUp2(),
@@ -21,6 +21,7 @@ timezones = [KaliningradUtcUp2(),
              VladivostokUtcUp10(),
              MagadanUtcUp11(),
              KamchatkaUtcUp12()]
+
 
 # Au7n8BPw0O7ADPCM2MEMQh1PfoKMeTuH7CT-Pnn-_eIHretpsewN14c9_5RyptC0DYc7ttIvfxBTYkcDfzyhNoe2Vq_haFr4MksJ8LKogBwrtA
 
@@ -38,7 +39,7 @@ class UpdateListFeedbacks(BaseButton, Utils):
         user_id = update.from_user.id
         supplier_name_key = data.get('previous_button')
 
-        #todo убрать
+        # todo убрать
         # print('supplier_name_key', supplier_name_key)
 
         feedbacks = dict()
@@ -98,40 +99,117 @@ class MessageAfterUserEntersSmsCode(BaseMessage, Utils):
         return reply_text, self.next_state
 
 
-class WildberriesCabinet(BaseButton, Utils):
-
+class SelectAPIMode(BaseButton, Utils):
     def _set_name(self) -> str:
-        return '🏪 Мои магазины'
+        return 'Режим работы по API'
 
-    def _set_reply_text(self) -> str:
+    def _set_reply_text(self) -> str | None:
         return FACE_BOT + '<b>Выберите магазин:</b>'
 
-    def _set_next_state(self) -> str | None:
-        return 'reset_state'
-
     def _set_children(self) -> list:
-        return [GoToBack(parent_id=self.button_id, parent_name=self.__class__.__name__)]
+        return [GoToBack(new=False)]
 
     def _set_messages(self) -> dict:
-        messages = [MessageAfterUserEntersPhone(self.button_id, parent_name=self.__class__.__name__),
-                    MessageAfterUserEntersSmsCode(self.button_id, parent_name=self.__class__.__name__)]
+        messages = [MessageAfterUserEntersPhone(button=self, parent_name=self.class_name),
+                    MessageAfterUserEntersSmsCode(button=self, parent_name=self.class_name)]
         return {message.state_or_key: message for message in messages}
 
-    async def _set_answer_logic(self, update, state):
+    async def _set_answer_logic(self, update: Message, state: FSMContext):
         reply_text, next_state = self.reply_text, self.next_state
         user_id = update.from_user.id
 
         result = await self.get_access_to_wb_api(update=update, state=state)
         if isinstance(result, tuple):
             reply_text, next_state = result
-
         else:
-            suppliers = await self.suppliers_buttons_logic(update=update, state=state, user_id=user_id)
-            # suppliers.append(GoToBack(new=False))
-            self.children_buttons = suppliers
-            # print(f'{suppliers=}')
-            # print(f'{self.children_buttons=}')
+            if suppliers_buttons := await self.suppliers_buttons_logic(update=update, state=state, user_id=user_id):
+                self.children_buttons = suppliers_buttons
+
         return reply_text, next_state
+
+
+class MessageEnterSupplierIDMode(BaseMessage):
+    def _set_state_or_key(self) -> str:
+        return 'FSMUtilsStates:enter_supplier_id_mode'
+
+    def _set_reply_text(self) -> str | None:
+        return FACE_BOT + '<b>Выберите магазин:</b>'
+
+    def _set_next_state(self) -> str | None:
+        return 'reset_state'
+
+    def _set_children(self) -> list:
+        return [GoToBack(new=False)]
+
+    async def _set_answer_logic(self, update: Message, state: FSMContext | None = None):
+        supplier_id = await self.m_utils.check_data(update.text)
+
+        if supplier_id:
+            reply_text, next_state = self.default_service_in_dev, self.next_state  # тут нужно reset state
+            ...
+            # TODO вызываем менеджера по парсингу для поиска и создания нового supplier и его feedbacks
+        else:
+            reply_text, next_state = self.default_incorrect_data_input_text.format(text='введите ID магазина'), None
+
+        return reply_text, next_state
+
+
+class EnterSupplierID(BaseButton):
+    def _set_name(self) -> str:
+        return 'Добавить магазин'
+
+    def _set_reply_text(self) -> str | None:
+        return FACE_BOT + 'Введите ID вашего магазина'
+
+    def _set_children(self) -> list:
+        return [GoToBack(new=False)]
+
+    def _set_next_state(self) -> str | None:
+        return FSMUtilsStates.enter_supplier_id_mode
+
+    def _set_messages(self) -> dict:
+        message = MessageEnterSupplierIDMode(button=self)
+        return {message.state_or_key: message}
+
+
+class SelectSupplierIDMode(BaseButton):
+    def _set_name(self) -> str:
+        return 'Режим работы по ID магазина'
+
+    def _set_reply_text(self) -> str | None:
+        return FACE_BOT + '<b>Выберите магазин:</b>'
+
+    def _set_children(self) -> list:
+        return [EnterSupplierID(parent_button=self, parent_name=self.class_name), GoToBack(new=False)]
+
+    async def _set_answer_logic(self, update, state):
+        reply_text, next_state = FACE_BOT + ' <b>Магазинов пока нет, добавьте</b>', self.next_state
+
+        wb_user = self.dbase.wb_user_get_or_none(user_id=update.from_user.id)
+        parsing_suppliers = {supplier_name: supplier_data for supplier_name, supplier_data in wb_user.suppliers.items()
+                             if supplier_data.get('mode') == 'PARSING'}
+        if parsing_suppliers:
+            ...
+            # TODO вызываем менеджера по парсингу для получения feedbacks
+
+        return reply_text, next_state
+
+
+class WildberriesCabinet(BaseButton):
+
+    def _set_name(self) -> str:
+        return '🏪 Мои магазины'
+
+    def _set_reply_text(self) -> str:
+        return FACE_BOT + 'Выберите режим работы:'
+
+    def _set_next_state(self) -> str | None:
+        return 'reset_state'
+
+    def _set_children(self) -> list:
+        return [SelectAPIMode(parent_button=self, parent_name=self.class_name),
+                SelectSupplierIDMode(parent_button=self, parent_name=self.class_name),
+                GoToBack(new=False)]
 
 
 class AroundTheClock(BaseButton):
@@ -203,7 +281,7 @@ class MessageEnterYourselfSetUpNotificationTimes(BaseMessage):
         enter_data = update.text.replace(' ', '')
         period = enter_data.split('-')
         if len(period) == 2 and all([sym.isdigit() and int(sym) in range(25) for sym in period]):
-                # and period[0] > period[1]:
+            # and period[0] > period[1]:
 
             self.children_buttons = self._set_children()
             self.dbase.update_wb_user(
@@ -214,7 +292,7 @@ class MessageEnterYourselfSetUpNotificationTimes(BaseMessage):
             text = self.reply_text
             next_state = 'reset_state'
         else:
-            text = self.default_incorrect_data_input_text
+            text = self.default_incorrect_data_input_text.format(text='необходимо ввести период времени в формате 5-17')
             self.children_buttons.clear()
             next_state = None
         return text, next_state
