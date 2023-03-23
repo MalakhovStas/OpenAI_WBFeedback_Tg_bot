@@ -325,18 +325,9 @@ class DBManager:
     def save_suppliers(self, suppliers: dict, user_id):
         self.logger.info(self.sign + f'save suppliers: {suppliers}')
         if wb_user := self.tables.wildberries.get_or_none(user_id=user_id):
-            wb_user.suppliers = suppliers
+            #todo dict update pythoon???
+            wb_user.suppliers.update(suppliers)
             wb_user.save()
-
-        # for s_name, s_id in suppliers.items():
-        #     supplier = self.tables.suppliers.get_or_create(x_supplier_id=s_id, user_id=user_id, name=s_name,
-        #                                                    callback=f'Shop{s_id}')
-            # supplier.name = s_name
-            # supplier.save()
-
-    # def get_suppliers(self):
-    #     TODO
-        # pass
 
     def save_unanswered_feedbacks(self, unanswered_feedbacks: dict, user_id):
         """ Сохранение отзывов в БД -> wildberries -> unanswered_feedbacks """

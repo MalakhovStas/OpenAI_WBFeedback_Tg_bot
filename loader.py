@@ -16,6 +16,7 @@ from buttons_and_messages.base_classes import Base
 from managers.requests_manager import RequestsManager
 from managers.wildberries_api_manager import WBAPIManager
 from managers.auto_update_feedback_manager import AutoUpdateFeedbackManager
+from managers.wildberries_parsing_manager import WBParsingManager
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 """ Модуль загрузки основных инструментов приложения """
 
@@ -37,12 +38,15 @@ rm = RequestsManager(logger=logger)
 ai = OpenAIManager(logger=logger)
 adm = AdminsManager(bot=bot, logger=logger, dbase=dbase)
 wb_api = WBAPIManager(dbase=dbase, rm=rm, ai=ai, logger=logger)
+wb_parsing = WBParsingManager(dbase=dbase, rm=rm, ai=ai, logger=logger)
 
 alm = AnswerLogicManager(ai=ai, bot=bot, logger=logger)
 
-Base.ai, Base.bot, Base.wb_api = ai, bot, wb_api
+Base.ai, Base.bot, Base.wb_api, Base.wb_parsing = ai, bot, wb_api, wb_parsing
 
 scheduler = AsyncIOScheduler()
+
+#TODO передать в aufm wb_parse
 aufm = AutoUpdateFeedbackManager(dbase=dbase, storage=storage, bot=bot, wb_api=wb_api, alm=alm, logger=logger)
 
 # start_time_scheduler = datetime.now() + timedelta(seconds=5)

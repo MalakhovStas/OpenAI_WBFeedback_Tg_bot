@@ -107,20 +107,20 @@ class RequestsManager:
                 try:
                     if method == 'post':
                         async with session.post(url, data=data, ssl=False, timeout=20) as response:
-                            if response.content_type == 'text/html':
+                            if response.content_type in ['text/html', 'text/plain']:
                                 result = {'response': await response.text()}
                             else:
                                 result = await response.json()
                     elif method == 'patch':
                         async with session.patch(url, data=data, ssl=False, timeout=20) as response:
-                            if response.content_type == 'text/html':
+                            if response.content_type in ['text/html', 'text/plain']:
                                 result = {'response': await response.text()}
                             else:
                                 result = await response.json()
 
                     else:
                         async with session.get(url, ssl=False, timeout=20) as response:
-                            if response.content_type == 'text/html':
+                            if response.content_type in ['text/html', 'text/plain']:
                                 result = {'response': await response.text()}
                             else:
                                 result = await response.json()

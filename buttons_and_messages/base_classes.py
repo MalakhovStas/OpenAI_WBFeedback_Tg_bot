@@ -703,21 +703,22 @@ class Utils(Base):
         return seller_token
 
     @classmethod
-    async def suppliers_buttons_logic(cls, update: Message | CallbackQuery | None = None,
-                                      state: FSMContext | None = None, user_id: int | None = None) -> list:
+    async def api_suppliers_buttons_logic(cls, update: Message | CallbackQuery | None = None,
+                                          state: FSMContext | None = None, user_id: int | None = None) -> list:
         suppliers = []
         user_id = user_id if user_id else update.from_user.id
         wb_user = cls.dbase.wb_user_get_or_none(user_id=update.from_user.id)
-        wb_user_suppliers = wb_user.suppliers
         seller_token = wb_user.sellerToken
+        wb_user_suppliers = {supplier_name: supplier_data for supplier_name, supplier_data in wb_user.suppliers.items()
+                             if supplier_data.get('mode') == 'API'}
 
         cls.logger.debug(f'Utils: get suppliers buttons names from DB {wb_user_suppliers=}')
 
         if wb_user_suppliers:
-            suppliers = await cls.get_many_buttons_from_any_collections(get_buttons_list=wb_user_suppliers.keys())
+            suppliers = await cls.get_many_buttons_from_any_collections(get_buttons_list=list(wb_user_suppliers.keys()))
             cls.logger.debug(f'Utils: get from collections buttons {suppliers=}')
 
-            if wb_user_suppliers and not suppliers:
+            if not suppliers:
                 suppliers = await cls.utils_get_or_create_buttons(collection=wb_user_suppliers, class_type='supplier',
                                                                   update=update, user_id=user_id)
                 cls.logger.debug(f'Utils: create buttons {suppliers=}')
@@ -733,7 +734,29 @@ class Utils(Base):
                 seller_token = await cls.get_access_to_wb_api(update=update, state=state)
                 if not isinstance(seller_token, tuple):
                     cls.logger.debug(f'Utils: not suppliers recursive call suppliers_buttons_logic {suppliers=}')
-                    suppliers = await cls.suppliers_buttons_logic(update=update, state=state, user_id=user_id)
+                    suppliers = await cls.api_suppliers_buttons_logic(update=update, state=state, user_id=user_id)
+
+        return suppliers
+
+    @classmethod
+    async def parsing_suppliers_buttons_logic(cls, update: Message | CallbackQuery | None = None,
+                                              state: FSMContext | None = None, user_id: int | None = None) -> list:
+        suppliers = []
+        user_id = user_id if user_id else update.from_user.id
+        wb_user = cls.dbase.wb_user_get_or_none(user_id=update.from_user.id)
+        wb_user_suppliers = {supplier_name: supplier_data for supplier_name, supplier_data in wb_user.suppliers.items()
+                             if supplier_data.get('mode') == 'PARSING'}
+
+        cls.logger.debug(f'Utils: get suppliers buttons names from DB {wb_user_suppliers=}')
+
+        if wb_user_suppliers:
+            suppliers = await cls.get_many_buttons_from_any_collections(get_buttons_list=list(wb_user_suppliers.keys()))
+            cls.logger.debug(f'Utils: get from collections buttons {suppliers=}')
+
+            if not suppliers:
+                suppliers = await cls.utils_get_or_create_buttons(collection=wb_user_suppliers, class_type='supplier',
+                                                                  update=update, user_id=user_id)
+                cls.logger.debug(f'Utils: create buttons {suppliers=}')
 
         return suppliers
 
@@ -796,11 +819,15 @@ class Utils(Base):
                 messages=cls.message_to_edit_feedback if class_type == 'Feedback' else None,
                 next_state=FSMPersonalCabinetStates.edit_feedback_answer if class_type == 'Feedback' else None
             )
-            # print('новый button:', button)
-            # тут создаются новые кнопки отзывов
-            children = cls.list_children_buttons if class_type == 'Feedback' else \
-                await cls.feedback_buttons_logic(supplier=data, update=update, user_id=user_id)
 
+            # тут создаются новые кнопки отзывов
+            if class_type == 'Feedback':
+                children = cls.list_children_buttons
+            elif object_id.startswith('SupplierParsing'):
+                children = []
+                #todo ллогика создания отзывов
+            else:
+                children = await cls.feedback_buttons_logic(supplier=data, update=update, user_id=user_id)
             button.children_buttons = children
 
             # TODO подумать нужно ли это поидее если коллекцию хранить в БД то нужно
@@ -814,7 +841,8 @@ class Utils(Base):
                 # button.name += f' < {len(children)-1 if children else 0} >'
                 button.name += f' < {len(unfeeds_supplier)} >'
 
-            button.reply_text = FACE_BOT + '📭 <b>Отзывов пока нет</b>' if len(children) - 1 <= 0 else reply_text
+            button.reply_text = FACE_BOT + '<b>В этом магазине отзывов пока нет</b>' \
+                if len(children) - 1 <= 0 else reply_text
         # print('len feedback_collection:', len(cls.feedback_collection))
         # print('len supplier_collection:', len(cls.supplier_collection))
         return button

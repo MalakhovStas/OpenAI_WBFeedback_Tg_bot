@@ -122,18 +122,18 @@ class SelectAPIMode(BaseButton, Utils):
         if isinstance(result, tuple):
             reply_text, next_state = result
         else:
-            if suppliers_buttons := await self.suppliers_buttons_logic(update=update, state=state, user_id=user_id):
+            if suppliers_buttons := await self.api_suppliers_buttons_logic(update=update, state=state, user_id=user_id):
                 self.children_buttons = suppliers_buttons
 
         return reply_text, next_state
 
 
-class MessageEnterSupplierIDMode(BaseMessage):
+class MessageEnterSupplierIDMode(BaseMessage, Utils):
     def _set_state_or_key(self) -> str:
         return 'FSMUtilsStates:enter_supplier_id_mode'
 
     def _set_reply_text(self) -> str | None:
-        return FACE_BOT + '<b>Выберите магазин:</b>'
+        return FACE_BOT + '<b>Магазин добавлен успешно</b>'
 
     def _set_next_state(self) -> str | None:
         return 'reset_state'
@@ -146,8 +146,17 @@ class MessageEnterSupplierIDMode(BaseMessage):
 
         if supplier_id:
             reply_text, next_state = self.default_service_in_dev, self.next_state  # тут нужно reset state
-            ...
+            supplier = await self.wb_parsing(supplier_id=supplier_id, update=update)
+
             # TODO вызываем менеджера по парсингу для поиска и создания нового supplier и его feedbacks
+            if suppliers_buttons := await self.parsing_suppliers_buttons_logic(
+                    update=update, state=state, user_id=update.from_user.id):
+
+                reply_text = self.reply_text
+                self.children_buttons = suppliers_buttons
+
+            else:
+                reply_text, next_state = f'Магазин с ID: {supplier_id} не найден, проверьте ID', None
         else:
             reply_text, next_state = self.default_incorrect_data_input_text.format(text='введите ID магазина'), None
 
@@ -172,9 +181,9 @@ class EnterSupplierID(BaseButton):
         return {message.state_or_key: message}
 
 
-class SelectSupplierIDMode(BaseButton):
+class SelectSupplierIDMode(BaseButton, Utils):
     def _set_name(self) -> str:
-        return 'Режим работы по ID магазина'
+        return 'Работа по ID магазина'
 
     def _set_reply_text(self) -> str | None:
         return FACE_BOT + '<b>Выберите магазин:</b>'
@@ -185,12 +194,10 @@ class SelectSupplierIDMode(BaseButton):
     async def _set_answer_logic(self, update, state):
         reply_text, next_state = FACE_BOT + ' <b>Магазинов пока нет, добавьте</b>', self.next_state
 
-        wb_user = self.dbase.wb_user_get_or_none(user_id=update.from_user.id)
-        parsing_suppliers = {supplier_name: supplier_data for supplier_name, supplier_data in wb_user.suppliers.items()
-                             if supplier_data.get('mode') == 'PARSING'}
-        if parsing_suppliers:
-            ...
-            # TODO вызываем менеджера по парсингу для получения feedbacks
+        if parsing_suppliers := await self.parsing_suppliers_buttons_logic(update=update, state=state,
+                                                                           user_id=update.from_user.id):
+            reply_text = self.reply_text
+            self.children_buttons = parsing_suppliers
 
         return reply_text, next_state
 

@@ -229,15 +229,15 @@ class WBAPIManager:
         suppliers = None
         user_id = user_id if user_id else update.from_user.id
 
-        response_request = await self.requests_manager(
+        response = await self.requests_manager(
             url=self.wb_data.get_suppliers_url,
             method='post',
             data=self.wb_data.get_suppliers_data,
             headers={"Cookie": f"WBToken={seller_token}"},
             add_headers=True
         )
-        self.logger.debug(self.sign + f'get_suppliers -> send sellerToken, response: {response_request}')
-        if response_request:
+        self.logger.debug(self.sign + f'get_suppliers -> send sellerToken, {response=}')
+        if response:
             try:
                 suppliers = {
                     f"Supplier{supplier['id']}":
@@ -248,16 +248,16 @@ class WBAPIManager:
                          'name': supplier['name'],  # "Vanijo"
                          'general': supplier['general'],  # "Краев Иван Кириллович"
                          'fullName': supplier['fullName']  # "Индивидуальный предприниматель Краев Иван Кириллович"
-                         } for supplier in response_request[0]['result']['suppliers']
+                         } for supplier in response[0]['result']['suppliers']
                 }
 
             except KeyError as exc:
                 pass
             else:
                 self.dbase.save_suppliers(suppliers, user_id=user_id)
-                pass
+
         if not suppliers:
-            self.logger.debug(self.sign + f'ERROR get_suppliers, response: {response_request}, "exc:" {exc}')
+            self.logger.warning(self.sign + f'ERROR get_suppliers, {response=} | {exc=}')
         return suppliers
 
     @wrapper_checking_seller_token_before_sending_request
