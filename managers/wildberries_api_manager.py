@@ -321,7 +321,7 @@ class WBAPIManager:
                      'createdDate': feedback.get('createdDate')}}
                 )
 
-        data = [self.ai.reply_many_feedbacks(feed_name=feed_name, feedback=feed_data.get('text'))
+        data = [self.ai.reply_feedback(feedback=feed_data.get('text'), feed_name=feed_name)
                 for feed_name, feed_data in result_feedbacks.items()]
 
         list_result = await asyncio.gather(*data)

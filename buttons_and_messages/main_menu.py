@@ -49,7 +49,8 @@ class MessageOnceForCreateResponseManuallyButton(BaseMessage):
         return 'reset_state'
 
     async def _set_answer_logic(self, update, state) -> tuple[str | None, str | None]:
-        wait_msg = await self.bot.send_message(chat_id=update.from_user.id, text=self.default_generate_answer)
+        wait_msg = await self.bot.send_message(chat_id=update.from_user.id,
+                                               text=self.default_generate_answer.format(postfix=''))
         reply_text = 'Я сгенерировал ответ на отзыв:\n\n' + await self.ai.reply_feedback(feedback=update.text)
         await self.bot.delete_message(chat_id=update.from_user.id, message_id=wait_msg.message_id)
 

@@ -45,7 +45,8 @@ class UpdateListFeedbacks(BaseButton, Utils):
         feedbacks = dict()
         buttons = []
 
-        msg = await self.bot.send_message(chat_id=user_id, text=self.default_download_information)
+        msg = await self.bot.send_message(chat_id=user_id, text=self.default_download_information.format(
+            about='Загружаю информацию о отзывах'))
 
         if supplier_name_key.startswith('SupplierParsing'):
             await self.wb_parsing(supplier_id=supplier_name_key, update=update)
@@ -149,18 +150,25 @@ class MessageEnterSupplierIDMode(BaseMessage, Utils):
         supplier_id = await self.m_utils.check_data(update.text)
 
         if supplier_id:
+            msg = await self.bot.send_message(
+                chat_id=update.from_user.id,
+                text=self.default_download_information.format(about='Загружаю информацию о магазине')
+            )
+
             reply_text, next_state = self.default_service_in_dev, self.next_state  # тут нужно reset state
-            supplier = await self.wb_parsing(supplier_id=supplier_id, update=update)
+            await self.wb_parsing(supplier_id=supplier_id, update=update)
 
             # TODO вызываем менеджера по парсингу для поиска и создания нового supplier и его feedbacks
             if suppliers_buttons := await self.parsing_suppliers_buttons_logic(
                     update=update, state=state, user_id=update.from_user.id):
-
+                # print('suppliers_buttons:', suppliers_buttons)
                 reply_text = self.reply_text
                 self.children_buttons = suppliers_buttons
 
             else:
                 reply_text, next_state = f'Магазин с ID: {supplier_id} не найден, проверьте ID', None
+
+            await self.bot.delete_message(chat_id=update.from_user.id, message_id=msg.message_id)
         else:
             reply_text, next_state = self.default_incorrect_data_input_text.format(text='введите ID магазина'), None
 
@@ -200,9 +208,21 @@ class SelectSupplierIDMode(BaseButton, Utils):
 
         if parsing_suppliers := await self.parsing_suppliers_buttons_logic(update=update, state=state,
                                                                            user_id=update.from_user.id):
+            # print('parsing_suppliers', parsing_suppliers)
             reply_text = self.reply_text
-            self.children_buttons = parsing_suppliers
+            # parsing_suppliers.insert(-1, EnterSupplierID(new=False))
+            # parsing_suppliers.insert(-1, EnterSupplierID(new=False))
+            # parsing_suppliers.append(EnterSupplierID(new=False))
+            # parsing_suppliers.insert(-1, GoToBack(new=False))
+            back = GoToBack(new=False)
+            enter_supplier = EnterSupplierID(new=False)
+            if back in parsing_suppliers:
+                index_back = parsing_suppliers.index(back)
+                parsing_suppliers.insert(index_back, enter_supplier)
+            else:
+                parsing_suppliers = parsing_suppliers + [enter_supplier, back]
 
+            self.children_buttons = parsing_suppliers
         return reply_text, next_state
 
 

@@ -1,4 +1,5 @@
 import re
+from random import choice
 from typing import Any
 
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -64,3 +65,15 @@ async def reversed_date_time_feedback(object_data):
     dt, tm = object_data.get("createdDate")[:16].split("T")
     dt_tm = ' '.join(('-'.join(dt.split('-')[::-1]), tm))
     return dt_tm
+
+
+async def random_choice_dict_elements(is_dict: dict, num_elements: int) -> dict:
+    result_dict = dict()
+    if len(is_dict) > num_elements:
+        while len(result_dict) < num_elements:
+            key = choice(list(is_dict.keys()))
+            result_dict.update({key: is_dict[key]})
+    else:
+        result_dict = is_dict
+    return result_dict
+

@@ -3,8 +3,10 @@ import json
 # import time
 from dataclasses import dataclass
 import aiohttp
-from aiogram.types  import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery
 # from loguru import logger
+from utils import misc_utils
+from config import NUM_FEED_BUTTONS
 
 # https://cutycapt.sourceforge.net/ - снимок сайта jpg, svg, pdf и пр
 @dataclass
@@ -19,7 +21,7 @@ class WBParsingManager:
     """ Класс Singleton для парсинга Wildberries """
 
     __instance = None
-    # m_utils = misc_utils
+    m_utils = misc_utils
     # wb_data = WBParseData
     # logger = logger
     # sign = 'Подпись класса: '
@@ -33,12 +35,11 @@ class WBParsingManager:
         if isinstance(supplier_id, str) and supplier_id.startswith('SupplierParsing'):
             supplier_id = supplier_id.lstrip('SupplierParsing')
 
-        supplier = await self.parse_get_supplier(supplier_id, update=update)
+        await self.parse_get_supplier(supplier_id, update=update)
         products_root_id = await self.parse_get_supplier_products(supplier_id)
         result_feedbacks, supplier_total_feeds = await self.parse_get_feedbacks_list(
             products_root_id=products_root_id, supplier_id=supplier_id, update=update)
         return result_feedbacks, supplier_total_feeds
-        # return supplier
 
     def __init__(self, dbase, rm, ai, logger):
         self.wb_data = WBParseData
@@ -106,7 +107,9 @@ class WBParsingManager:
         return products_root_id
 
     async def parse_get_feedbacks_list(self, products_root_id: dict, supplier_id,
-                                           update: Message | CallbackQuery | None = None, user_id: int | None = None):
+                                       update: Message | CallbackQuery | None = None, user_id: int | None = None):
+
+        res_products_root_id = await self.m_utils.random_choice_dict_elements(is_dict=products_root_id, num_elements=5)
         only_year = '2023'
         # total_feedbacks = 0
         result_feedbacks = dict()
@@ -121,7 +124,7 @@ class WBParsingManager:
         self.logger.debug(f'{len(ignored_feeds.keys())=} | {len(unanswered_feeds.keys())=} '
                           f'| {len(total_feeds_in_db)=}')
 
-        for item_root_id, product_name in products_root_id.items():
+        for item_root_id, product_name in res_products_root_id.items():
             # item_root_id = next(iter(item))
             # product_name = item[item_root_id]
             # print(item_root_id, product_name)
@@ -138,13 +141,17 @@ class WBParsingManager:
 
             self.logger.debug(self.sign + f'func: get_feedback_list -> {product_name=} {len(feedbacks)=}')
 
-            for feedback in feedbacks[:5]:
+            allowed_steps = NUM_FEED_BUTTONS // len(res_products_root_id)
+            step = 0
+            for feedback in feedbacks:
                 if not feedback.get('answer') and feedback.get('createdDate').startswith(only_year):
+                    step += 1
+                    if step > allowed_steps:
+                        break
                     # total_feedbacks += 1
-
                     # print(feedback.get('answer'), type(feedback.get('answer')))
                     # print(feedback)
-                    result_feedbacks.update({f"Feedback{feedback.get('id')}": {
+                    result_feedbacks.update({f"FeedbackParsing{feedback.get('id')}": {
                         'supplier': supplier_name,
                         'button_name': f"[ {feedback.get('productValuation')} ]  {feedback.get('text')[:100]}",
                         'text': feedback.get('text'),
@@ -153,8 +160,7 @@ class WBParsingManager:
                         'productName': product_name,
                         'createdDate': feedback.get('createdDate')}})
 
-
-        data = [self.ai.reply_many_feedbacks(feed_name=feed_name, feedback=feed_data.get('text'))
+        data = [self.ai.reply_feedback(feedback=feed_data.get('text'), feed_name=feed_name)
                 for feed_name, feed_data in result_feedbacks.items()]
 
         list_result = await asyncio.gather(*data)

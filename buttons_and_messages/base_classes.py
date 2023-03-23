@@ -32,8 +32,8 @@ class Base(ABC):
     default_bad_text = 'Нет данных'
     default_service_in_dev = '🛠 Сервис в разработке, в ближайшее время функционал будет доступен'
     default_incorrect_data_input_text = FACE_BOT + 'Введены некорректные данные - {text}'
-    default_generate_answer = FACE_BOT + '✍ Генерирую ответ, немного подождите пожалуйста ...'
-    default_download_information = FACE_BOT + '🌐 Загружаю информацию, немного подождите пожалуйста ...'
+    default_generate_answer = FACE_BOT + '✍ Генерирую ответ{postfix}, немного подождите пожалуйста ...'
+    default_download_information = FACE_BOT + '🌐 {about}, немного подождите пожалуйста ...'
 
     message_store = dict()
     button_store = dict()
@@ -87,6 +87,7 @@ class Base(ABC):
 
         cls.logger.debug(f'Base: get_many_buttons_from_any_collections -> {"OK" if result_buttons_list else "BAD"} '
                          f'get_buttons_list: {get_buttons_list}, return result: {result_buttons_list}')
+        # result_buttons_list.append(GoToBack(new=False))
         return result_buttons_list
 
     @classmethod
@@ -374,7 +375,7 @@ class GoToBack(BaseButton):
         return reply_text, next_state
 
 
-class FeedbackHasBeenProcessed(BaseButton):
+class ParsingFeedbackHasBeenProcessed(BaseButton):
     def _set_name(self) -> str:
         return '🗑 Отзыв опубликован'
 
@@ -395,10 +396,10 @@ class FeedbackHasBeenProcessed(BaseButton):
             update_data={'unanswered_feedbacks': wb_user.unanswered_feedbacks}
         )
 
-        text_result = FACE_BOT + "🆗 Отзыв удален из базы"
+        text_result = FACE_BOT + "🆗 Отзыв удален из списка"
 
         second_msg = await self.bot.send_message(chat_id=update.from_user.id, text=text_result)
-        await asyncio.sleep(2)
+        await asyncio.sleep(1)
         await self.bot.delete_message(chat_id=update.from_user.id, message_id=second_msg.message_id)
 
         supplier_button = await self.button_search_and_action_any_collections(action='get',
@@ -520,12 +521,12 @@ class GenerateNewResponseToFeedback(BaseButton):
         # print("@@@@", data.get('previous_button'))
         # print("@@@@", previous_button)
 
-        reply_feedback = await self.ai.reply_feedback(previous_button.any_data.get('text'))
-        previous_button.any_data['answer'] = reply_feedback
+        ai_answer = await self.ai.reply_feedback(previous_button.any_data.get('text'))
+        previous_button.any_data['answer'] = ai_answer
 
         wb_user = self.dbase.wb_user_get_or_none(user_id=update.from_user.id)
-        if wb_user.unanswered_feedbacks.get(previous_button.__class__.__name__):
-            wb_user.unanswered_feedbacks.get(previous_button.__class__.__name__).update({'answer': reply_feedback})
+        if wb_user.unanswered_feedbacks.get(previous_button.class_name):
+            wb_user.unanswered_feedbacks.get(previous_button.class_name).update({'answer': ai_answer})
 
         self.dbase.update_wb_user(
             user_id=update.from_user.id,
@@ -800,12 +801,14 @@ class Utils(Base):
 
         if wb_user_suppliers:
             suppliers = await cls.get_many_buttons_from_any_collections(get_buttons_list=list(wb_user_suppliers.keys()))
-            cls.logger.error(f'Utils: get from collections buttons {suppliers=}')
+            # print('suppliers:', suppliers)
+            cls.logger.debug(f'Utils: get from collections buttons {suppliers=}')
 
-            if not suppliers:
+            # print(f'{len(wb_user_suppliers)=} | {len(suppliers)=}')
+            if not suppliers or len(wb_user_suppliers) > len(suppliers):
                 suppliers = await cls.utils_get_or_create_buttons(collection=wb_user_suppliers, class_type='supplier',
                                                                   update=update, user_id=user_id)
-                cls.logger.error(f'Utils: create buttons {suppliers=}')
+                cls.logger.debug(f'Utils: create buttons {suppliers=}')
         # print(f'parsing_suppliers_buttons_logic: {suppliers=}')
         return suppliers
 
@@ -833,7 +836,8 @@ class Utils(Base):
         # else:
         if not feedbacks:
             """Если в БД нет отзывов конкретного supplier делаем запрос к WB API или WB PARSING"""
-            msg = await cls.bot.send_message(chat_id=user_id, text=cls.default_download_information)
+            msg = await cls.bot.send_message(chat_id=user_id, text=cls.default_download_information.format(
+                about='Загружаю информацию о отзывах'))
 
             if supplier_name_key.startswith('SupplierParsing'):
                 feedbacks, supplier_total_feeds = await cls.wb_parsing(supplier_id=supplier_name_key, update=update)
@@ -883,7 +887,7 @@ class Utils(Base):
             # тут создаются новые кнопки отзывов
             if class_type == 'Feedback':
                 if supplier_name_key.startswith('SupplierParsing'):
-                    children = [FeedbackHasBeenProcessed(), *cls.list_children_buttons[1:]]
+                    children = [ParsingFeedbackHasBeenProcessed(), *cls.list_children_buttons[1:]]
                 else:
                     children = cls.list_children_buttons
 
@@ -901,7 +905,7 @@ class Utils(Base):
             if isinstance(button.name, str) and class_type == 'Supplier':
                 wb_user = cls.dbase.wb_user_get_or_none(user_id=user_id)
                 unfeeds_supplier = [feed for feed in wb_user.unanswered_feedbacks.values()
-                                    if feed.get('supplier') == button.__class__.__name__]
+                                    if feed.get('supplier') == button.class_name]
                 # button.name += f' < {len(children)-1 if children else 0} >'
                 button.name += f' < {len(unfeeds_supplier)} >'
 

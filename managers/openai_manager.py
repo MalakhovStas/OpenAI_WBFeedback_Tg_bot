@@ -83,17 +83,15 @@ class OpenAIManager:
     async def _check_type_str(cls, *args) -> bool:
         return all((isinstance(arg, str) for arg in args))
 
-    async def reply_feedback(self, feedback: str) -> str:
-        if await self._check_type_str(feedback):
-            #TODO Разобраться почему я так написал feedback[:100]
-            return await self.answer(f'напиши ответ на отзыв: {feedback}')
-
-    async def reply_many_feedbacks(self, feed_name: str, feedback: str) -> tuple:
+    async def reply_feedback(self, feedback: str, feed_name: str | None = None) -> tuple | str:
         answer = None
         if await self._check_type_str(feedback):
-            #TODO Разобраться почему я так написал feedback[:100]
             answer = await self.answer(f'напиши ответ на отзыв: {feedback}')
-        return feed_name, answer
+
+        if feed_name:
+            return feed_name, answer
+        else:
+            return answer
 
     async def some_question(self, prompt: str) -> str:
         if await self._check_type_str(prompt):
@@ -107,7 +105,7 @@ class OpenAIManager:
 #       "finish_reason": "stop",
 #       "index": 0,
 #       "logprobs": null,
-#       "text": "\u0430\u0442\u0435\u0440\u0438\u0430\u043b \u043f\u0440\u0438\u044f\u0442\u043d\u044b\u0439.\n\n\u0421\u043f\u0430\u0441\u0438\u0431\u043e \u0437\u0430 \u0412\u0430\u0448 \u043e\u0442\u0437\u044b\u0432! \u041c\u044b \u0440\u0430\u0434\u044b, \u0447\u0442\u043e \u0412\u0430\u043c \u043f\u043e\u043d\u0440\u0430\u0432\u0438\u043b\u0430\u0441\u044c \u043a\u0443\u0440\u0442\u043a\u0430 \u0434\u043b\u044f \u0412\u0430\u0448\u0435\u0439 \u0434\u043e\u0447\u0435\u0440\u0438. \u041c\u044b \u043f\u043e\u0441\u0442\u0430\u0440\u0430\u043b\u0438\u0441\u044c \u0441\u0434\u0435\u043b\u0430\u0442\u044c \u0432\u0441\u0435 \u043c\u0430\u043a\u0441\u0438\u043c\u0430\u043b\u044c\u043d\u043e \u043a\u0430\u0447\u0435\u0441\u0442\u0432\u0435\u043d\u043d\u043e, \u0447\u0442\u043e\u0431\u044b \u0412\u0430\u043c \u0431\u044b\u043b\u043e \u0434\u043e\u0441\u0442\u0430\u0432\u043b\u0435\u043d\u043e \u0443\u0434\u043e\u0432\u043e\u043b\u044c\u0441\u0442\u0432\u0438\u0435 \u043e\u0442 \u043f\u043e\u043a\u0443\u043f\u043a\u0438. \u0411\u043b\u0430\u0433\u043e\u0434\u0430\u0440\u0438\u043c \u0412\u0430\u0441 \u0437\u0430 \u0434\u043e\u0432\u0435\u0440\u0438\u0435 \u0438 \u0436\u0435\u043b\u0430\u0435\u043c \u0412\u0430\u043c \u043f\u0440\u0438\u044f\u0442\u043d\u044b\u0445 \u043f\u043e\u043a\u0443\u043f\u043e\u043a!"
+#       "text": "Тут текст ответа"
 #     }
 #   ],
 #   "created": 1679239442,
