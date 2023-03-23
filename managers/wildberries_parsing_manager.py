@@ -1,11 +1,10 @@
 import asyncio
 import json
-import time
+# import time
 from dataclasses import dataclass
 import aiohttp
 from aiogram.types  import Message, CallbackQuery
-from loguru import logger
-from bs4 import BeautifulSoup
+# from loguru import logger
 
 # https://cutycapt.sourceforge.net/ - снимок сайта jpg, svg, pdf и пр
 @dataclass
