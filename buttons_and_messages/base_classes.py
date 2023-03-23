@@ -374,6 +374,51 @@ class GoToBack(BaseButton):
         return reply_text, next_state
 
 
+class FeedbackHasBeenProcessed(BaseButton):
+    def _set_name(self) -> str:
+        return '🗑 Отзыв опубликован'
+
+    async def _set_answer_logic(self, update, state: FSMContext | None = None):
+        data = dict()
+        if state:
+            data = await state.get_data()
+
+        feed_button = await self.button_search_and_action_any_collections(action='get',
+                                                                          button_name=data.get('previous_button'))
+
+        wb_user = self.dbase.wb_user_get_or_none(user_id=update.from_user.id)
+
+        wb_user.unanswered_feedbacks.pop(feed_button.class_name)
+
+        self.dbase.update_wb_user(
+            user_id=update.from_user.id,
+            update_data={'unanswered_feedbacks': wb_user.unanswered_feedbacks}
+        )
+
+        text_result = FACE_BOT + "🆗 Отзыв удален из базы"
+
+        second_msg = await self.bot.send_message(chat_id=update.from_user.id, text=text_result)
+        await asyncio.sleep(2)
+        await self.bot.delete_message(chat_id=update.from_user.id, message_id=second_msg.message_id)
+
+        supplier_button = await self.button_search_and_action_any_collections(action='get',
+                                                                              button_name=feed_button.parent_name)
+        self.log(f'supplier_button start len children_buttons: {len(supplier_button.children_buttons)}')
+
+        await self.button_search_and_action_any_collections(action='pop', instance_button=feed_button)
+        supplier_button.children_buttons.remove(feed_button)
+        self.log(f'supplier_button after remove len children_buttons: {len(supplier_button.children_buttons)}')
+
+        was = re.search(r'< \d+ >', supplier_button.name).group(0)
+        will_be = f"< {int(was.strip('<> ')) - 1} >"
+        supplier_button.name = supplier_button.name.replace(was, will_be)
+
+        self.children_buttons = supplier_button.children_buttons
+
+        self.log(f'supplier_button: {supplier_button}')
+        return supplier_button.reply_text, supplier_button.next_state
+
+
 class PostFeedback(BaseButton):
     def _set_name(self) -> str:
         return '📩 Опубликовать'
@@ -724,6 +769,8 @@ class Utils(Base):
                 cls.logger.debug(f'Utils: create buttons {suppliers=}')
 
         else:
+        #todo &&&&&&&&&&&?????????????
+        # if not wb_user_suppliers or all([len(suppl.children_buttons) < 2 for suppl in suppliers if suppl.class_name != 'GoToBack']):
             if seller_token:
                 if suppliers := await cls.wb_api.get_suppliers(seller_token=seller_token, update=update,
                                                                user_id=user_id):
@@ -736,6 +783,7 @@ class Utils(Base):
                     cls.logger.debug(f'Utils: not suppliers recursive call suppliers_buttons_logic {suppliers=}')
                     suppliers = await cls.api_suppliers_buttons_logic(update=update, state=state, user_id=user_id)
 
+        # print([len(suppl.children_buttons) < 2 for suppl in suppliers if suppl.class_name != 'GoToBack'])
         return suppliers
 
     @classmethod
@@ -746,18 +794,19 @@ class Utils(Base):
         wb_user = cls.dbase.wb_user_get_or_none(user_id=update.from_user.id)
         wb_user_suppliers = {supplier_name: supplier_data for supplier_name, supplier_data in wb_user.suppliers.items()
                              if supplier_data.get('mode') == 'PARSING'}
+        # print(f'parsing_suppliers_buttons_logic: {wb_user_suppliers=}')
 
         cls.logger.debug(f'Utils: get suppliers buttons names from DB {wb_user_suppliers=}')
 
         if wb_user_suppliers:
             suppliers = await cls.get_many_buttons_from_any_collections(get_buttons_list=list(wb_user_suppliers.keys()))
-            cls.logger.debug(f'Utils: get from collections buttons {suppliers=}')
+            cls.logger.error(f'Utils: get from collections buttons {suppliers=}')
 
             if not suppliers:
                 suppliers = await cls.utils_get_or_create_buttons(collection=wb_user_suppliers, class_type='supplier',
                                                                   update=update, user_id=user_id)
-                cls.logger.debug(f'Utils: create buttons {suppliers=}')
-
+                cls.logger.error(f'Utils: create buttons {suppliers=}')
+        # print(f'parsing_suppliers_buttons_logic: {suppliers=}')
         return suppliers
 
     @classmethod
@@ -772,14 +821,25 @@ class Utils(Base):
 
         if feedbacks:
             """Выбираем неотвеченные отзывы конкретного supplier из БД"""
-            feedbacks = {feedback_id: feedback_data for feedback_id, feedback_data
-                         in dict(itertools.islice(feedbacks.items(), NUM_FEED_BUTTONS)).items()
+            # feedbacks = {feedback_id: feedback_data for feedback_id, feedback_data
+            #              in dict(itertools.islice(feedbacks.items(), NUM_FEED_BUTTONS)).items()
+            #              if feedback_data.get('supplier') == supplier_name_key}
+
+            feedbacks = {feedback_id: feedback_data for feedback_id, feedback_data in feedbacks.items()
                          if feedback_data.get('supplier') == supplier_name_key}
-        else:
-            """Если в БД нет отзывов делаем запрос к WB API"""
+            feedbacks = dict(list(feedbacks.items())[0:NUM_FEED_BUTTONS])
+            # print('!!!!!!!!!!!!!!!!!!!!!', supplier_name_key == 'SupplierParsing252218', feedbacks)
+
+        # else:
+        if not feedbacks:
+            """Если в БД нет отзывов конкретного supplier делаем запрос к WB API или WB PARSING"""
             msg = await cls.bot.send_message(chat_id=user_id, text=cls.default_download_information)
-            feedbacks, supplier_total_feeds = await cls.wb_api.get_feedback_list(seller_token=wb_user.sellerToken,
-                                                                                 supplier=supplier, user_id=user_id)
+
+            if supplier_name_key.startswith('SupplierParsing'):
+                feedbacks, supplier_total_feeds = await cls.wb_parsing(supplier_id=supplier_name_key, update=update)
+            else:
+                feedbacks, supplier_total_feeds = await cls.wb_api.get_feedback_list(seller_token=wb_user.sellerToken,
+                                                                                     supplier=supplier, user_id=user_id)
             await cls.bot.delete_message(chat_id=user_id, message_id=msg.message_id)
 
         """Возвращаем список объектов BaseButton кнопок-отзывов"""
@@ -822,10 +882,14 @@ class Utils(Base):
 
             # тут создаются новые кнопки отзывов
             if class_type == 'Feedback':
-                children = cls.list_children_buttons
+                if supplier_name_key.startswith('SupplierParsing'):
+                    children = [FeedbackHasBeenProcessed(), *cls.list_children_buttons[1:]]
+                else:
+                    children = cls.list_children_buttons
+
             elif object_id.startswith('SupplierParsing'):
-                children = []
-                #todo ллогика создания отзывов
+                children = await cls.feedback_buttons_logic(supplier=data, update=update, user_id=user_id)
+                # todo ллогика создания отзывов
             else:
                 children = await cls.feedback_buttons_logic(supplier=data, update=update, user_id=user_id)
             button.children_buttons = children

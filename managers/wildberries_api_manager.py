@@ -288,13 +288,13 @@ class WBAPIManager:
         seller_token = wb_user.sellerToken if not seller_token else seller_token
         ignored_feeds = wb_user.ignored_feedbacks
         unanswered_feeds = wb_user.unanswered_feedbacks
-        total_feeds = ignored_feeds | unanswered_feeds
+        total_feeds_in_db = ignored_feeds | unanswered_feeds
 
         self.logger.debug(f'{len(ignored_feeds.keys())=} | {len(unanswered_feeds.keys())=} '
-                          f'| {len(total_feeds)=}')
+                          f'| {len(total_feeds_in_db)=}')
 
         response_request = await self.requests_manager(
-            url=self.wb_data.get_feedback_list_url(take=len(total_feeds) + take),
+            url=self.wb_data.get_feedback_list_url(take=len(total_feeds_in_db) + take),
             method='get',
             headers={"Cookie":  f"x-supplier-id={x_supplier_id}; WBToken={seller_token};"},
             add_headers=True
@@ -306,11 +306,11 @@ class WBAPIManager:
 
         self.logger.debug(self.sign + f'func: get_feedback_list -> {len(feedbacks_from_wb_api)=}')
         # stop_list = [*ignored_feeds.keys(), *unanswered_feeds.keys()]
-        stop_list = ignored_feeds | unanswered_feeds
+        # stop_list = ignored_feeds | unanswered_feeds
 
         for feedback in feedbacks_from_wb_api:
             feedback_id = feedback.get('id')
-            if not f"Feedback{feedback_id}" in stop_list.keys():
+            if not f"Feedback{feedback_id}" in total_feeds_in_db.keys():
                 result_feedbacks.update(
                     {f"Feedback{feedback_id}": {
                      'supplier': f"Supplier{x_supplier_id}",
@@ -331,7 +331,7 @@ class WBAPIManager:
         self.logger.debug(self.sign + f'func: get_feedback_list  | {len(result_feedbacks)=} | {supplier_name=}')
         self.dbase.save_unanswered_feedbacks(unanswered_feedbacks=result_feedbacks, user_id=user_id)
 
-        supplier_total_feeds = len([feed for feed in stop_list.values()
+        supplier_total_feeds = len([feed for feed in total_feeds_in_db.values()
                                     if feed.get('supplier') == supplier_name]) + len(result_feedbacks)
 
         # print('supplier_name ->', supplier_name, '-> total_feeds', total_feeds)

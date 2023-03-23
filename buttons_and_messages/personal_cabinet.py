@@ -47,7 +47,11 @@ class UpdateListFeedbacks(BaseButton, Utils):
 
         msg = await self.bot.send_message(chat_id=user_id, text=self.default_download_information)
 
-        await self.wb_api.get_feedback_list(supplier=supplier_name_key, user_id=user_id)
+        if supplier_name_key.startswith('SupplierParsing'):
+            await self.wb_parsing(supplier_id=supplier_name_key, update=update)
+
+        else:
+            await self.wb_api.get_feedback_list(supplier=supplier_name_key, user_id=user_id)
 
         wb_user = self.dbase.wb_user_get_or_none(user_id=user_id)
 
