@@ -99,12 +99,18 @@ class MessageAfterUserEntersSmsCode(BaseMessage, Utils):
         return 'reset_state'
 
     async def _set_answer_logic(self, update: Message, state: FSMContext):
-        reply_text = "Код не верный, попробуйте немного позже"
+        reply_text, next_state = f'{FACE_BOT} Код не верный, попробуйте немного позже', self.next_state
+        user_id = update.from_user.id
+
         if await self.get_access_to_wb_api(update=update, state=state, sms_code=update.text):
             # reply_text = "Код верный, получаю данные магазина ... "
             # reply_text, next_state = await SelectAPIMode(new=False)._set_answer_logic(update=update, state=state)
-            reply_text, next_state = await self.parent_button._set_answer_logic(update=update, state=state)
-        return reply_text, self.next_state
+            # reply_text, next_state = await self.parent_button._set_answer_logic(update=update, state=state)
+            reply_text, next_state = self.parent_button.reply_text, self.next_state
+            if suppliers_buttons := await self.api_suppliers_buttons_logic(update=update, state=state, user_id=user_id):
+                self.children_buttons = suppliers_buttons
+
+        return reply_text, next_state
 
 
 class SelectAPIMode(BaseButton, Utils):
@@ -179,7 +185,7 @@ class MessageEnterSupplierIDMode(BaseMessage, Utils):
 
 class EnterSupplierID(BaseButton):
     def _set_name(self) -> str:
-        return 'Добавить магазин'
+        return ' 📥 Добавить магазин'
 
     def _set_reply_text(self) -> str | None:
         return FACE_BOT + 'Введите ID вашего магазина'
