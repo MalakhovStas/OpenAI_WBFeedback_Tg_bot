@@ -29,11 +29,22 @@ async def message_any_message(message: Message, state: FSMContext) -> None:
     await state.update_data(last_handler_sent_message_id=sent_message.message_id,
                             last_handler_sent_from_message_message_id=sent_message.message_id)
 
-    Base.updates_data['last_handler_sent_message_id'] = sent_message.message_id
-    Base.updates_data['last_handler_sent_from_message_message_id'] = sent_message.message_id
+    # Base.updates_data['last_handler_sent_message_id'] = sent_message.message_id
+    await Base.button_search_and_action_any_collections(
+        user_id=message.from_user.id, action='add', button_name='last_handler_sent_message_id',
+        updates_data=True, instance_button=sent_message.message_id)
+    # Base.updates_data['last_handler_sent_from_message_message_id'] = sent_message.message_id
+    await Base.button_search_and_action_any_collections(
+        user_id=message.from_user.id, action='add', button_name='last_handler_sent_from_message_message_id',
+        updates_data=True, instance_button=sent_message.message_id)
 
     if next_state:
         await state.set_state(next_state) if next_state != 'reset_state' else await state.reset_state()
+
+        await Base.button_search_and_action_any_collections(
+            user_id=message.from_user.id, action='add', button_name='state', updates_data=True,
+            instance_button=next_state if next_state != 'reset_state' else None
+        )
 
 
 @dp.callback_query_handler(lambda callback: callback.data, state='*')
@@ -50,8 +61,19 @@ async def get_call(call: CallbackQuery, state: FSMContext) -> None:
     await state.update_data(last_handler_sent_message_id=sent_message.message_id,
                             last_handler_sent_from_call_message_id=sent_message.message_id)
 
-    Base.updates_data['last_handler_sent_message_id'] = sent_message.message_id
-    Base.updates_data['last_handler_sent_from_call_message_id'] = sent_message.message_id
+    # Base.updates_data['last_handler_sent_message_id'] = sent_message.message_id
+    await Base.button_search_and_action_any_collections(
+        user_id=call.from_user.id, action='add', button_name='last_handler_sent_message_id',
+        updates_data=True, instance_button=sent_message.message_id)
+    # Base.updates_data['last_handler_sent_from_call_message_id'] = sent_message.message_id
+    await Base.button_search_and_action_any_collections(
+        user_id=call.from_user.id, action='add', button_name='last_handler_sent_from_call_message_id',
+        updates_data=True, instance_button=sent_message.message_id)
 
     if next_state:
         await state.set_state(next_state) if next_state != 'reset_state' else await state.reset_state()
+
+        await Base.button_search_and_action_any_collections(
+            user_id=call.from_user.id, action='add', button_name='state', updates_data=True,
+            instance_button=next_state if next_state != 'reset_state' else None
+        )

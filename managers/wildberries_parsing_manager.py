@@ -136,10 +136,10 @@ class WBParsingManager:
             if not feedbacks:
                 response = await self.requests_manager(
                     self.wb_data.get_feedbacks2_from_items.format(item_root_id=item_root_id))
-                feedbacks = response.get('feedbacks')
+                feedbacks = response.get('feedbacks', list())
                 # print('feedbacks2', True if feedbacks else False)
 
-            self.logger.debug(self.sign + f'func: get_feedback_list -> {product_name=} {len(feedbacks)=}')
+            self.logger.debug(self.sign + f'func: get_feedback_list -> {product_name=} | {len(feedbacks)=}')
 
             allowed_steps = NUM_FEED_BUTTONS // len(res_products_root_id)
             step = 0

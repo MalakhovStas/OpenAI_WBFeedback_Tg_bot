@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 
 # from utils.exception_control import exception_handler_wrapper
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
-from buttons_and_messages.base_classes import Utils, Base, DefaultButtonForAUFM
+from buttons_and_messages.base_classes import Utils, Base, DefaultButtonForAUFMGoToFeed
 from config import FACE_BOT
 from utils import misc_utils
 
@@ -12,7 +12,7 @@ class AutoUpdateFeedbackManager:
     """ Класс Singleton для автоматического поиска новых отзывов в
     заданном интервале __interval и уведомлений о них"""
     __instance = None
-    __default_answer_button = DefaultButtonForAUFM()
+    __default_answer_button = DefaultButtonForAUFMGoToFeed()
 
     __default_suffix = FACE_BOT + 'В вашем магазине\n <b>{supplier_title}</b> \n' \
                                   'появился новый отзыв, я сгенерировал ответ:\n\n'
@@ -79,8 +79,8 @@ class AutoUpdateFeedbackManager:
 
                         text, keyboard, next_state = await self.alm.get_reply(button=button)
 
-                        btn_goto_feed = self.__default_answer_button(feed_id=button.button_id,
-                                                                     feed_key_name=button.class_name)
+                        btn_goto_feed = self.__default_answer_button(user_id=user_id, feedback_button=button)
+                        # feed_id=button.button_id, feed_key_name=button.class_name)
                         """К каждому сообщению создаёт кнопку перейти к отзыву -> DefaultButtonForAUFM"""
                         keyboard = await self.m_utils.create_keyboard(btn_goto_feed)
 
@@ -91,7 +91,7 @@ class AutoUpdateFeedbackManager:
                         #todo это наверное не нужно
                         # self.base.updates_data['last_aufm_sent_massage'] = aufm_sent_message
                     if supplier_button:
-                        await self.base.m_utils.change_name_button(supplier_button, supplier_total_feeds)
+                        await self.base.m_utils.change_name_button(button=supplier_button, num=supplier_total_feeds)
                         # supplier_button.children_buttons = {**supplier_button.children_buttons, **buttons}
                         # print('supplier_button.children_buttons', supplier_button.children_buttons)
                         if not supplier_button:

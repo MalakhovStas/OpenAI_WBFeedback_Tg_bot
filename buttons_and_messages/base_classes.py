@@ -1,6 +1,4 @@
 import asyncio
-import itertools
-import re
 from abc import ABC
 from typing import Any
 
@@ -32,16 +30,22 @@ class Base(ABC):
     default_bad_text = 'Нет данных'
     default_service_in_dev = '🛠 Сервис в разработке, в ближайшее время функционал будет доступен'
     default_incorrect_data_input_text = FACE_BOT + 'Введены некорректные данные - {text}'
-    default_generate_answer = FACE_BOT + '✍ Генерирую ответ{postfix}, немного подождите пожалуйста ...'
-    default_download_information = FACE_BOT + '🌐 {about}, немного подождите пожалуйста ...'
+    default_generate_answer = FACE_BOT + '✍ Генерирую ответ, немного подождите пожалуйста ...'
+    default_download_information = FACE_BOT + '🌐 {about}\nнемного подождите пожалуйста ...'
 
-    message_store = dict()
-    button_store = dict()
-    supplier_collection = dict()
-    feedback_collection = dict()
-    aufm_feeds_collection = dict()
+    # general_collection = {'general_messages': {},
+    #                       'general_buttons': {},
+    #                       'user_id': {'updates_data': {}, 'suppliers': {}, 'feedbacks': {}, 'aufm_catalog': {}}}
 
-    updates_data = dict()
+    general_collection = dict()
+    general_collection_dump = dict()
+    # message_store = dict()
+    # button_store = dict()
+    # supplier_collection = dict()
+    # feedback_collection = dict()
+    # aufm_catalog = dict()
+    #
+    # updates_data = dict()
 
     def log(self, message, level: str | None = None):
         text = f'class: {self.__class__.__name__}: ' + message
@@ -75,14 +79,15 @@ class Base(ABC):
         return list()
 
     @classmethod
-    async def get_many_buttons_from_any_collections(cls, get_buttons_list: list | tuple) -> Any | None:
+    async def get_many_buttons_from_any_collections(cls, get_buttons_list: list | tuple,
+                                                    user_id: int | None = None) -> Any | None:
         cls.logger.debug(f'Base: get_many_buttons_from_any_collections -> get_buttons_list: {get_buttons_list}')
         result_buttons_list = list()
 
         if get_buttons_list:
             for button_name in get_buttons_list:
-                if result_button := await cls.button_search_and_action_any_collections(
-                        button_name=button_name, action='get'):
+                if result_button := await cls.button_search_and_action_any_collections(user_id=user_id, action='get',
+                                                                                       button_name=button_name):
                     result_buttons_list.append(result_button)
 
         cls.logger.debug(f'Base: get_many_buttons_from_any_collections -> {"OK" if result_buttons_list else "BAD"} '
@@ -92,53 +97,120 @@ class Base(ABC):
 
     @classmethod
     async def button_search_and_action_any_collections(cls, action: str, button_name: str | None = None,
-                                                       instance_button: Any | None = None) -> Any | None:
-        cls.logger.debug(f'Base: action: {action.upper()} | button_name: {button_name} | '
-                         f'instance_button: {instance_button} | func: button_search_and_action_any_collections')
+                                                       instance_button: Any | str | None = None,
+                                                       user_id: str | int | None = None,
+                                                       update: Message | CallbackQuery | None = None,
+                                                       message: bool = False,
+                                                       updates_data: bool = False,
+                                                       aufm_catalog_key: str | None = None
+                                                       ) -> Any | None:
+
+        if update and not user_id:
+            user_id = update.from_user.id
+
+        if user_id:
+            cls.general_collection.setdefault(user_id, {'updates_data': {},
+                                                        'suppliers': {},
+                                                        'feedbacks': {},
+                                                        'aufm_catalog': {}})
+
+            # cls.general_collection_dump.setdefault(user_id, {'updates_data': {},
+            #                                             'suppliers': {},
+            #                                             'feedbacks': {},
+            #                                             'aufm_catalog': {}})
+
+        if aufm_catalog_key:
+            if action == 'add':
+                cls.general_collection.get(user_id).get('aufm_catalog')[aufm_catalog_key] = button_name
+                # cls.general_collection_dump.get(user_id).get('aufm_catalog')[aufm_catalog_key] = button_name
+                return True
+            elif action == 'pop':
+                button_name = cls.general_collection.get(user_id).get('aufm_catalog').pop(aufm_catalog_key, None)
+                # cls.general_collection_dump.get(user_id).get('aufm_catalog').pop(aufm_catalog_key, None)
+                action = 'get'
+            else:
+                raise ValueError(f'aufm_catalog не поддерживает {action=}')
 
         if not button_name and not instance_button:
-            return None
+            raise ValueError(f'Чтобы выполнить {action=} необходимо передать button_name или instance_button')
 
-        if instance_button:
-            button_name = instance_button.__class__.__name__
+        if instance_button and not aufm_catalog_key and not updates_data:
+            button_name = instance_button.class_name
 
         if button_name.startswith('Supplier'):
-            collection = cls.supplier_collection
-            collection_name = 'supplier_collection'
+            collection_name = 'suppliers'
+
         elif button_name.startswith('Feedback'):
-            collection = cls.feedback_collection
-            collection_name = 'feedback_collection'
+            collection_name = 'feedbacks'
+
         else:
-            collection = cls.button_store
-            collection_name = 'button_store'
+            if message:
+                collection_name = 'general_messages'
+            elif updates_data:
+                collection_name = 'updates_data'
+            else:
+                collection_name = 'general_buttons'
 
-        cls.logger.debug(f'Base: set collection:{collection_name.upper()} for {action.upper()} | '
-                         f'button_name: {button_name} | func: button_search_and_action_any_collections')
+        if action == 'add':
+            if instance_button or updates_data:
+                if collection_name in ['general_buttons', 'general_messages']:
+                    cls.general_collection.setdefault(collection_name, dict())[button_name] = instance_button
+                    # cls.general_collection_dump.setdefault(collection_name, dict())[button_name] = {attr: getattr(instance_button, attr) for attr in instance_button.__slots__}
+                else:
+                    cls.general_collection.get(user_id).get(collection_name)[button_name] = instance_button
+                    # if updates_data:
+                    #     cls.general_collection_dump.get(user_id).get(collection_name)[button_name] = instance_button
+                    # else:
+                    #     cls.general_collection_dump.get(user_id).get(collection_name)[button_name] = {attr: getattr(instance_button, attr) for attr in instance_button.__slots__}
 
-        if instance_button and action == 'add':
-            collection.update({button_name: instance_button})
-            button = instance_button
+                button = instance_button
+            else:
+                raise ValueError(f'Чтобы выполнить {action=} в {collection_name=}, '
+                                 f'необходимо передать instance_button -> {button_name=}')
         elif action == 'get':
-            # print(f'длина коллекции {collection_name} тут:', len(collection), collection)
-            button = collection.get(button_name)
+            if collection_name in ['general_buttons', 'general_messages']:
+                button = cls.general_collection.setdefault(collection_name, dict()).get(button_name)
+            else:
+                button = cls.general_collection.get(user_id).get(collection_name).get(button_name)
+
         elif action == 'pop':
-            button = collection.pop(button_name, None)
+            if collection_name in ['general_buttons', 'general_messages']:
+                button = cls.general_collection.setdefault(collection_name, dict()).pop(button_name, None)
+                # cls.general_collection_dump.setdefault(collection_name, dict()).pop(button_name, None)
+            else:
+                button = cls.general_collection.get(user_id).get(collection_name).pop(button_name, None)
+                # cls.general_collection_dump.get(user_id).get(collection_name).pop(button_name, None)
+
         else:
             button = None
-
-        cls.logger.debug(f'Base: result:{"OK" if button else "BAD"} {action=} -> return {button=} '
-                         f'| func: button_search_and_action_any_collections')
+        # if not isinstance(button, (int, str)):
+            # cls.general_collection_dump[button.class_name] = {attr: getattr(button, attr) for attr in button.__slots__}
+        cls.logger.debug(f'Base: {"OK" if button else "BAD"} -> {action=} | {collection_name=} | return {button=}')
         return button
 
-    # @classmethod #TODO циркулярный импорт исправить
-    # def decorate_methods_for_exception_control(cls):
-    #     """Декорирует методы _set_answer_logic во всех классах для контроля исключений вызов этого метода в __init__
-    #     базовых классов"""
-    #     for attr_name in cls.__dict__:
-    #         if not attr_name.startswith('__') and attr_name == '_set_answer_logic':
-    #             method = cls.__getattribute__(cls, attr_name)
-    #             if type(method) is FunctionType:
-    #                 setattr(cls, attr_name, cls.exception_controller(method))
+    @classmethod
+    async def pop_feed_and_change_supplier_name_button(cls, user_id, feed_button, supplier_button):
+        """ Удаляет отзыв из коллекции и из children_buttons кнопки supplier,
+            а также в её имени меняет количество отзывов на -1 """
+
+        # cls.logger.debug(f'start {len(supplier_button.children_buttons)=}')
+        await cls.button_search_and_action_any_collections(user_id=user_id, action='pop', instance_button=feed_button)
+        supplier_button.children_buttons.remove(feed_button)
+        # cls.logger.debug(f'after remove {len(supplier_button.children_buttons)=}')
+        await cls.m_utils.change_name_button(button=supplier_button, minus_one=True)
+
+    @classmethod
+    async def update_feed_answer(cls, user_id, button, new_answer):
+        button.any_data['answer'] = new_answer
+
+        wb_user = cls.dbase.wb_user_get_or_none(user_id=user_id)
+        if wb_user.unanswered_feedbacks.get(button.class_name):
+            wb_user.unanswered_feedbacks.get(button.class_name).update({'answer': new_answer})
+
+        cls.dbase.update_wb_user(
+            user_id=user_id,
+            update_data={'unanswered_feedbacks': wb_user.unanswered_feedbacks}
+        )
 
 
 class BaseMessage(Base):
@@ -171,7 +243,11 @@ class BaseMessage(Base):
             self.children_buttons = self._set_children() if not children_buttons else children_buttons
             self.next_state = self._set_next_state()
             self._save_message()
-            self.message_store.setdefault(self.state_or_key, self)
+
+            # self.message_store.setdefault(self.state_or_key, self)
+            self.general_collection.setdefault('general_messages', dict())[self.state_or_key] = self
+            # await self.button_search_and_action_any_collections(
+            #     action='add', button_name=self.state_or_key, instance_button=self, message=True)
 
     def __str__(self):
         return f'message: {self.__class__.__name__} button_id: {self.button_id}, state_or_key: {self.state_or_key}, ' \
@@ -192,17 +268,6 @@ class BaseMessage(Base):
                           'reply_text': self.reply_text,
                           'children_buttons': [child.button_id for child in self.children_buttons]}
         )
-
-        # with self.dbase:
-        #     message, fact_create = self.tables.messages.get_or_create(button_id=self.button_id)
-        #     if message:
-        #         message.state_or_key = self.state_or_key
-        #         message.reply_text = self.reply_text
-        #         message.children_buttons = [child.button_id for child in self.children_buttons]
-        #         if fact_create:
-        #             self.logger.debug(self.base_sign + f'create new object message: {self.class_name} in DB')
-        #         else:
-        #             self.logger.debug(self.base_sign + f'update object message: {self.class_name} in DB')
 
 
 class BaseButton(Base):
@@ -225,7 +290,8 @@ class BaseButton(Base):
     def __init__(self, name: str | None = None, callback: str | None = None, new=True,
                  parent_id: int | None = None, parent_name: str | None = None, parent_callback: str | None = None,
                  reply_text: str | None = None, children: list | None = None, messages: dict | None = None,
-                 any_data: dict | None = None, next_state: str | None = None, parent_button: Any | None = None):
+                 any_data: dict | None = None, next_state: str | None = None, parent_button: Any | None = None,
+                 user_id: str | None = None):
 
         if new and self.__class__.__name__ != BaseButton.__name__:
             self.class_name = self.__class__.__name__
@@ -246,21 +312,29 @@ class BaseButton(Base):
             self.children_messages = self._set_messages() if not messages else messages
             self._update_children_and_messages()
 
-            self.message_store.update(self.children_messages)
+            # self.message_store.update(self.children_messages)
 
             # if self.__class__.__name__.startswith('Supplier'):
+            # await self.button_search_and_action_any_collections(
+            #     user_id=user_id, action='add', button_name=self.class_name, instance_button=self)
+
             if self.class_name.startswith('Supplier'):
+                self.general_collection.get(user_id).get('suppliers')[self.class_name] = self
+
                 # self.supplier_collection[self.__class__.__name__] = self
-                self.supplier_collection[self.class_name] = self
-            # elif self.__class__.__name__.startswith('Feedback'):
+                # self.supplier_collection[self.class_name] = self
+
             elif self.class_name.startswith('Feedback'):
+                self.general_collection.get(user_id).get('feedbacks')[self.class_name] = self
+
                 # self.feedback_collection[self.__class__.__name__] = self
-                self.feedback_collection[self.class_name] = self
+                # self.feedback_collection[self.class_name] = self
                 # print('создал и добавляю кнопку в коллекцию:', self)
                 # print('длина коллекции feedbacks:', len(self.feedback_collection))
             else:
+                self.general_collection.setdefault('general_buttons', dict())[self.class_name] = self
                 # self.button_store[self.__class__.__name__] = self
-                self.button_store[self.class_name] = self
+                # self.button_store[self.class_name] = self
 
     def __str__(self):
         return f'button: {self.__class__.__name__} button_id: {self.button_id}, name: {self.name}, callback: ' \
@@ -283,18 +357,6 @@ class BaseButton(Base):
                                                      'reply_text': self.reply_text
                                                      }
                                         )
-        # with self.dbase:
-        #     button, fact_create = self.tables.buttons.get_or_create(button_id=self.button_id)
-        #     if button:
-        #         button.parent_id = self.parent_id
-        #         button.name = self.name
-        #         button.callback = self.callback
-        #         button.reply_text = self.reply_text
-        #         button.save()
-        #         if fact_create:
-        #             self.logger.debug(self.base_sign + f'create new object button: {self.class_name} in DB')
-        #         else:
-        #             self.logger.debug(self.base_sign + f'update object button: {self.class_name} in DB')
 
     def _update_children_and_messages(self) -> None:
         """Вызывается один раз при создании singleton экземпляра класса"""
@@ -304,13 +366,6 @@ class BaseButton(Base):
                          'messages': [child.state_or_key for child in self.children_messages.values()],
                          }
         )
-
-        # with self.dbase:
-        #     if button := self.tables.buttons.get_or_none(button_id=self.button_id):
-        #         button.children = [child.button_id for child in self.children_buttons]
-        #         button.messages = [child.state_or_key for child in self.children_messages.values()]
-        #         button.save()
-        #         self.logger.debug(self.base_sign + f'update lists children objects in object button: {self.class_name} in DB')
 
     def _set_name(self) -> str:
         name = 'Button:' + self.class_name
@@ -343,8 +398,10 @@ class BaseButton(Base):
         button = button.button_id if button else None
         return button
 
-    async def get_parent(self):
-        return await self.button_search_and_action_any_collections(action='get', button_name=self.parent_name)
+    #TODO нигде не используется возомжно не нужно
+    # async def get_parent(self):
+    #     return await self.button_search_and_action_any_collections(user_id=user_id, action='get',
+    #                                                                button_name=self.parent_name)
 
 
 class GoToBack(BaseButton):
@@ -355,15 +412,20 @@ class GoToBack(BaseButton):
         data = dict()
         if state:
             data = await state.get_data()
+            
+        previous_button_name = await self.button_search_and_action_any_collections(
+            user_id=update.from_user.id, action='get', button_name='previous_button', updates_data=True)
+        # data.get('previous_button')
+        previous_button = await self.button_search_and_action_any_collections(user_id=update.from_user.id, action='get',
+                                                                              button_name=previous_button_name)
 
-        previous_button = await self.button_search_and_action_any_collections(action='get',
-                                                                              button_name=data.get('previous_button'))
-
-        result_button = await self.button_search_and_action_any_collections(action='get', button_name='PersonalCabinet')
+        result_button = await self.button_search_and_action_any_collections(user_id=update.from_user.id, action='get',
+                                                                            button_name='PersonalCabinet')
 
         if previous_button:
+            parent_name = previous_button.parent_name if previous_button.parent_name else 'MainMenu'
             if parent_prev_button := await self.button_search_and_action_any_collections(
-                    action='get', button_name=previous_button.parent_name):
+                    user_id=update.from_user.id, action='get', button_name=parent_name):
                 result_button = parent_prev_button
 
         if hasattr(result_button.__class__, '_set_answer_logic'):
@@ -384,39 +446,27 @@ class ParsingFeedbackHasBeenProcessed(BaseButton):
         if state:
             data = await state.get_data()
 
-        feed_button = await self.button_search_and_action_any_collections(action='get',
+        feed_button = await self.button_search_and_action_any_collections(user_id=update.from_user.id, action='get',
                                                                           button_name=data.get('previous_button'))
 
         wb_user = self.dbase.wb_user_get_or_none(user_id=update.from_user.id)
-
         wb_user.unanswered_feedbacks.pop(feed_button.class_name)
-
         self.dbase.update_wb_user(
             user_id=update.from_user.id,
             update_data={'unanswered_feedbacks': wb_user.unanswered_feedbacks}
         )
 
         text_result = FACE_BOT + "🆗 Отзыв удален из списка"
-
         second_msg = await self.bot.send_message(chat_id=update.from_user.id, text=text_result)
         await asyncio.sleep(1)
         await self.bot.delete_message(chat_id=update.from_user.id, message_id=second_msg.message_id)
 
-        supplier_button = await self.button_search_and_action_any_collections(action='get',
+        supplier_button = await self.button_search_and_action_any_collections(user_id=update.from_user.id, action='get',
                                                                               button_name=feed_button.parent_name)
-        self.log(f'supplier_button start len children_buttons: {len(supplier_button.children_buttons)}')
-
-        await self.button_search_and_action_any_collections(action='pop', instance_button=feed_button)
-        supplier_button.children_buttons.remove(feed_button)
-        self.log(f'supplier_button after remove len children_buttons: {len(supplier_button.children_buttons)}')
-
-        was = re.search(r'< \d+ >', supplier_button.name).group(0)
-        will_be = f"< {int(was.strip('<> ')) - 1} >"
-        supplier_button.name = supplier_button.name.replace(was, will_be)
-
+        await self.pop_feed_and_change_supplier_name_button(user_id=update.from_user.id, feed_button=feed_button,
+                                                            supplier_button=supplier_button)
         self.children_buttons = supplier_button.children_buttons
 
-        self.log(f'supplier_button: {supplier_button}')
         return supplier_button.reply_text, supplier_button.next_state
 
 
@@ -432,7 +482,7 @@ class PostFeedback(BaseButton):
         if state:
             data = await state.get_data()
 
-        feed_button = await self.button_search_and_action_any_collections(action='get',
+        feed_button = await self.button_search_and_action_any_collections(user_id=update.from_user.id, action='get',
                                                                           button_name=data.get('previous_button'))
 
         wb_user = self.dbase.wb_user_get_or_none(user_id=update.from_user.id)
@@ -467,22 +517,13 @@ class PostFeedback(BaseButton):
         second_msg = await self.bot.send_message(chat_id=update.from_user.id, text=text_result)
         await asyncio.sleep(2)
         await self.bot.delete_message(chat_id=update.from_user.id, message_id=second_msg.message_id)
-        supplier_button = await self.button_search_and_action_any_collections(action='get',
+        supplier_button = await self.button_search_and_action_any_collections(user_id=update.from_user.id, action='get',
                                                                               button_name=feed_button.parent_name)
-        self.log(f'supplier_button start len children_buttons: {len(supplier_button.children_buttons)}')
-
         if result:
-            await self.button_search_and_action_any_collections(action='pop', instance_button=feed_button)
-            supplier_button.children_buttons.remove(feed_button)
-            self.log(f'supplier_button after remove len children_buttons: {len(supplier_button.children_buttons)}')
-
-            was = re.search(r'< \d+ >', supplier_button.name).group(0)
-            will_be = f"< {int(was.strip('<> ')) - 1} >"
-            supplier_button.name = supplier_button.name.replace(was, will_be)
-
+            await self.pop_feed_and_change_supplier_name_button(user_id=update.from_user.id, feed_button=feed_button,
+                                                                supplier_button=supplier_button)
         self.children_buttons = supplier_button.children_buttons
 
-        self.log(f'supplier_button: {supplier_button}')
         return supplier_button.reply_text, supplier_button.next_state
 
 
@@ -494,10 +535,9 @@ class EditFeedback(BaseButton):
         await self.bot.delete_message(chat_id=update.from_user.id, message_id=update.message.message_id)
 
         data = await state.get_data() if state else dict()
-        # print('EditFeedback -> state data:', data)
-        previous_button = await self.button_search_and_action_any_collections(action='get',
+
+        previous_button = await self.button_search_and_action_any_collections(user_id=update.from_user.id, action='get',
                                                                               button_name=data.get('previous_button'))
-        # print('EditFeedback:', previous_button)
         reply_text = previous_button.any_data.get('answer')
         self.reply_text = reply_text
 
@@ -516,22 +556,12 @@ class GenerateNewResponseToFeedback(BaseButton):
         if state:
             data = await state.get_data()
 
-        previous_button = await self.button_search_and_action_any_collections(action='get',
+        previous_button = await self.button_search_and_action_any_collections(user_id=update.from_user.id, action='get',
                                                                               button_name=data.get('previous_button'))
-        # print("@@@@", data.get('previous_button'))
-        # print("@@@@", previous_button)
 
         ai_answer = await self.ai.reply_feedback(previous_button.any_data.get('text'))
-        previous_button.any_data['answer'] = ai_answer
 
-        wb_user = self.dbase.wb_user_get_or_none(user_id=update.from_user.id)
-        if wb_user.unanswered_feedbacks.get(previous_button.class_name):
-            wb_user.unanswered_feedbacks.get(previous_button.class_name).update({'answer': ai_answer})
-
-        self.dbase.update_wb_user(
-            user_id=update.from_user.id,
-            update_data={'unanswered_feedbacks': wb_user.unanswered_feedbacks}
-        )
+        await self.update_feed_answer(user_id=update.from_user.id, button=previous_button, new_answer=ai_answer)
 
         self.children_buttons = previous_button.children_buttons
         await self.bot.delete_message(chat_id=update.from_user.id, message_id=message_waiting.message_id)
@@ -553,10 +583,10 @@ class DontReplyFeedback(BaseButton):
         if state:
             data = await state.get_data()
 
-        removed_button = await self.button_search_and_action_any_collections(action='pop',
+        removed_button = await self.button_search_and_action_any_collections(user_id=update.from_user.id, action='pop',
                                                                              button_name=data.get('previous_button'))
 
-        supplier_button = await self.button_search_and_action_any_collections(action='get',
+        supplier_button = await self.button_search_and_action_any_collections(user_id=update.from_user.id, action='get',
                                                                               button_name=removed_button.parent_name)
         wb_user = self.dbase.wb_user_get_or_none(user_id=update.from_user.id)
         if rm_feed := wb_user.unanswered_feedbacks.pop(removed_button.__class__.__name__, None):
@@ -575,7 +605,7 @@ class DontReplyFeedback(BaseButton):
 
         unfeeds_supplier = [feed for feed in wb_user.unanswered_feedbacks.values()
                             if feed.get('supplier') == supplier_button.class_name]
-        await self.m_utils.change_name_button(supplier_button, len(unfeeds_supplier))
+        await self.m_utils.change_name_button(button=supplier_button, num=len(unfeeds_supplier))
 
         return supplier_button.reply_text, supplier_button.next_state
 
@@ -589,22 +619,14 @@ class MessageEditFeedbackAnswer(BaseMessage):
         if state:
             data = await state.get_data()
 
-        previous_button = await self.button_search_and_action_any_collections(action='get',
+        previous_button = await self.button_search_and_action_any_collections(user_id=update.from_user.id, action='get',
                                                                               button_name=data.get('previous_button'))
         await self.bot.delete_message(chat_id=update.from_user.id, message_id=update.message_id)
         await self.bot.delete_message(chat_id=update.from_user.id, message_id=data.get('last_handler_sent_message_id'))
 
         new_reply_text = update.text.replace(f'@{BOT_NIKNAME}', '').strip().strip('\n').strip()
-        previous_button.any_data['answer'] = new_reply_text
 
-        wb_user = self.dbase.wb_user_get_or_none(user_id=update.from_user.id)
-        if wb_user.unanswered_feedbacks.get(previous_button.__class__.__name__):
-            wb_user.unanswered_feedbacks.get(previous_button.__class__.__name__).update({'answer': new_reply_text})
-
-        self.dbase.update_wb_user(
-            user_id=update.from_user.id,
-            update_data={'unanswered_feedbacks': wb_user.unanswered_feedbacks}
-        )
+        await self.update_feed_answer(user_id=update.from_user.id, button=previous_button, new_answer=new_reply_text)
 
         self.children_buttons = previous_button.children_buttons
 
@@ -615,13 +637,14 @@ class MessageEditFeedbackAnswer(BaseMessage):
         return new_reply_text, self.next_state
 
 
-class DefaultButtonForAUFM(BaseButton):
+class DefaultButtonForAUFMGoToFeed(BaseButton):
 
-    def __call__(self, feed_id, feed_key_name):
-        self.name, long_feed_id = self.m_utils.set_button_name(self.name, feed_id)
-        self.aufm_feeds_collection[long_feed_id] = feed_key_name
+    def __call__(self, user_id, feedback_button):  #feed_id, feed_key_name):
+        long_feed_id = self.m_utils.set_button_name(feedback_button.button_id)
+        # self.aufm_feeds_collection[long_feed_id] = feed_key_name
+        self.button_search_and_action_any_collections(
+            user_id=user_id, action='add', button_name=feedback_button.class_name, aufm_catalog_key=long_feed_id)
 
-        # print(self.aufm_feeds_collection)
         return self
 
     def _set_name(self) -> str:
@@ -636,48 +659,27 @@ class DefaultButtonForAUFM(BaseButton):
         if state:
             data = await state.get_data()
 
-        # long_feed_id = self.name[-7:]
+        # long_feed_id -> 0000058
         long_feed_id = update.message.reply_markup.values.get('inline_keyboard')[0][0].text[-7:]
-        feed_key_name = self.aufm_feeds_collection.pop(long_feed_id)
-
-        # print('feed_key_name:', feed_key_name)
-        # print(update.data)
-
-        # last_call_message_id = data.get('last_call_message_id')
+        # feed_key_name = self.aufm_feeds_collection.pop(long_feed_id)
+        feed_btn = await self.button_search_and_action_any_collections(user_id=update.from_user.id, action='pop',
+                                                                       aufm_catalog_key=long_feed_id)
         previous_button = data.get('previous_button')
-        # print(f'в кнопке: {previous_button=} | {last_call_message_id=}')
-        # print(f'в кнопке: {previous_button=} | {self.updates_data.get("last_handler_sent_message_id")=}')
-        # print(last_call_message_id)
+        # feed_btn = await self.button_search_and_action_any_collections(
+        #     user_id=update.from_user.id, action='get', button_name=feed_key_name)
 
-        feed_btn = await self.button_search_and_action_any_collections(action='get', button_name=feed_key_name)
-        # print('feed_btn:', feed_btn)
-
-        # last_any_handler_message_id = data.get('last_handler_sent_message_id')
-        # last_call_handler_message_id = data.get('last_handler_sent_from_call_message_id')
-        # if last_call_handler_message_id == last_any_handler_message_id:
-        #     msg_id = last_any_handler_message_id
-        #     msg_id2 = None
-        # else:
-        #     msg_id2 = last_any_handler_message_id
-        # msg_id = last_call_handler_message_id
-
-        # print(f'{self.updates_data.get("last_handler_sent_message_id")=}')
-        # print(f'{msg_id=}')
         from aiogram.utils.exceptions import MessageToDeleteNotFound, MessageIdentifierNotSpecified
-        msg_id_to_delete = self.updates_data.get("last_handler_sent_message_id")
+        # msg_id_to_delete = self.updates_data.get("last_handler_sent_message_id")
+        msg_id_to_delete = await self.button_search_and_action_any_collections(
+            user_id=update.from_user.id, action='get', button_name='last_handler_sent_message_id', updates_data=True)
         try:
             await self.bot.delete_message(chat_id=update.from_user.id, message_id=msg_id_to_delete)
-            # if msg_id2:
-            #     await self.bot.delete_message(chat_id=update.from_user.id, message_id=msg_id2)
 
         except (MessageToDeleteNotFound, MessageIdentifierNotSpecified) as exc:
             self.logger.warning(self.base_sign + f'{msg_id_to_delete=} NOT found in chat_id: '
                                                  f'{update.from_user.id} | {exc=} | {previous_button=}')
 
-        update.data = feed_key_name
-
-        # оно и так удаляется в handler
-        # await self.bot.delete_message(chat_id=update.from_user.id, message_id=update.message.message_id)
+        update.data = feed_btn.class_name
 
         reply_text = feed_btn.reply_text if feed_btn.reply_text else self.default_bad_text
 
@@ -761,7 +763,8 @@ class Utils(Base):
         cls.logger.debug(f'Utils: get suppliers buttons names from DB {wb_user_suppliers=}')
 
         if wb_user_suppliers:
-            suppliers = await cls.get_many_buttons_from_any_collections(get_buttons_list=list(wb_user_suppliers.keys()))
+            suppliers = await cls.get_many_buttons_from_any_collections(get_buttons_list=list(wb_user_suppliers.keys()),
+                                                                        user_id=user_id)
             cls.logger.debug(f'Utils: get from collections buttons {suppliers=}')
 
             if not suppliers:
@@ -800,7 +803,8 @@ class Utils(Base):
         cls.logger.debug(f'Utils: get suppliers buttons names from DB {wb_user_suppliers=}')
 
         if wb_user_suppliers:
-            suppliers = await cls.get_many_buttons_from_any_collections(get_buttons_list=list(wb_user_suppliers.keys()))
+            suppliers = await cls.get_many_buttons_from_any_collections(get_buttons_list=list(wb_user_suppliers.keys()),
+                                                                        user_id=user_id)
             # print('suppliers:', suppliers)
             cls.logger.debug(f'Utils: get from collections buttons {suppliers=}')
 
@@ -835,9 +839,10 @@ class Utils(Base):
 
         # else:
         if not feedbacks:
+            supplier_btn_name = list(supplier.values())[0].get('button_name')
             """Если в БД нет отзывов конкретного supplier делаем запрос к WB API или WB PARSING"""
             msg = await cls.bot.send_message(chat_id=user_id, text=cls.default_download_information.format(
-                about='Загружаю информацию о отзывах'))
+                about=f'Загружаю информацию о отзывах магазина: \n<b>{supplier_btn_name}</b>'))
 
             if supplier_name_key.startswith('SupplierParsing'):
                 feedbacks, supplier_total_feeds = await cls.wb_parsing(supplier_id=supplier_name_key, update=update)
@@ -872,7 +877,9 @@ class Utils(Base):
                     f'<b>Ответ:</b>\n\n<code>{object_data.get("answer")}</code>'
 
             parent_button = await cls.button_search_and_action_any_collections(
-                'get', button_name='WildberriesCabinet' if class_type == 'Supplier' else supplier_name_key)
+                user_id=user_id, action='get',
+                button_name='WildberriesCabinet' if class_type == 'Supplier' else supplier_name_key
+            )
 
             button = type(object_id, (BaseButton,), {})(
                 name=object_data.get('button_name'),
@@ -881,7 +888,8 @@ class Utils(Base):
                 reply_text=reply_text,
                 any_data=object_data,
                 messages=cls.message_to_edit_feedback if class_type == 'Feedback' else None,
-                next_state=FSMPersonalCabinetStates.edit_feedback_answer if class_type == 'Feedback' else None
+                next_state=FSMPersonalCabinetStates.edit_feedback_answer if class_type == 'Feedback' else None,
+                user_id=user_id
             )
 
             # тут создаются новые кнопки отзывов
@@ -930,7 +938,8 @@ class Utils(Base):
 
         for object_id, object_data in collection.items():
             """Проверяем существует ли объект-кнопка BaseButton В какой-либо коллекции"""
-            button = await cls.button_search_and_action_any_collections(action='get', button_name=object_id)
+            button = await cls.button_search_and_action_any_collections(user_id=user_id, action='get',
+                                                                        button_name=object_id)
             if not button:
                 """Если нет создаем новый объект"""
                 button = await cls.create_button_dynamically(
@@ -957,7 +966,8 @@ class Utils(Base):
         if class_type and class_type not in ['Supplier', 'Feedback']:
             raise ValueError('class_type должен быть Supplier или Feedback')
 
-        button = await cls.button_search_and_action_any_collections(action='get', button_name=button_name_key)
+        button = await cls.button_search_and_action_any_collections(user_id=user_id, action='get',
+                                                                    button_name=button_name_key)
         if not button:
             button_data = dict() if not button_data else button_data
             button = await cls.create_button_dynamically(
@@ -965,9 +975,3 @@ class Utils(Base):
                 supplier_name_key=supplier_name_key
             )
         return button
-
-    # @classmethod
-    # async def first_enter_or_not_suppliers(cls, update, state, user_id, wb_user):
-    #     """ Предлагает выбрать режим работы по API, или ввести ID магазина """
-    #     cls.
-    #     await cls.bot.send_message(chat_id=user_id, text=FACE_BOT + 'Выберите:', reply_markup=[])

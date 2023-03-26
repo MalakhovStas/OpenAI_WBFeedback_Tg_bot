@@ -26,13 +26,11 @@ class AnswerLogicManager:
     async def create_keyboard(self, buttons: list | None, insert: bool = False,
                               main_menu: bool = False, parent_button: Any | None = None) -> InlineKeyboardMarkup:
 
-        # print('AnswerLogicManager -> create_keyboard -> parent_button:', type(parent_button), parent_button)
-
         parent_button = self.main if not parent_button else parent_button
 
-        # if buttons == self.main.children_buttons:
-        #     main_menu = False
-        #     insert = True
+        if buttons == self.main.children_buttons:
+            main_menu = False
+            insert = True
         #
         # if not parent_button or parent_button == self.main:
         #     insert = True
@@ -45,11 +43,8 @@ class AnswerLogicManager:
                     main_menu = True
                     insert = True
 
-                # align = "left" if button.__class__.__name__.startswith('Feedback') else "center"
-
                 if len(buttons) == 1 or index < len(buttons):
                     if button.class_name == 'EditFeedback':
-                        # print('alm EditFeedback:', button)
                         text = f'\n' + (parent_button.any_data.get('answer') if parent_button
                                         and parent_button.any_data else self.main.default_bad_text)
                         keyboard.add(InlineKeyboardButton(text=button.name, switch_inline_query_current_chat=text))
@@ -74,6 +69,7 @@ class AnswerLogicManager:
     async def get_reply(self, update: Message | CallbackQuery | None = None, state: FSMContext | None = None,
                         button: Any | None = None, message: Any | None = None, insert: bool = False,
                         main_menu: bool = True) -> tuple[str | None, InlineKeyboardMarkup | None, str | None]:
+
         buttons = None
         current_data = {}
         current_state = None
@@ -83,8 +79,8 @@ class AnswerLogicManager:
             current_state = await state.get_state()
 
         if isinstance(update, CallbackQuery):
-            if button := await self.main.button_search_and_action_any_collections(action='get',
-                                                                                  button_name=update.data):
+            if button := await self.main.button_search_and_action_any_collections(
+                    user_id=update.from_user.id, action='get', button_name=update.data):
                 buttons = button.children_buttons
 
         elif isinstance(update, Message):
@@ -95,7 +91,7 @@ class AnswerLogicManager:
 
             elif update.get_command() == '/my_shops':
                 if button := await self.main.button_search_and_action_any_collections(
-                        action='get', button_name='WildberriesCabinet'):
+                        user_id=update.from_user.id, action='get', button_name='WildberriesCabinet'):
                     buttons = button.children_buttons
                     message = None
 
@@ -109,7 +105,11 @@ class AnswerLogicManager:
             elif update.get_command() == '/school':
                 return SCHOOL, None, None
             else:
-                if message := self.main.message_store.get(current_state):
+                # if message := self.main.message_store.get(current_state):
+                # print('current_state', current_state)
+                if message := await self.main.button_search_and_action_any_collections(action='get',
+                                                                                       button_name=current_state,
+                                                                                       message=True):
                     buttons = message.children_buttons
 
         if not button and not message:
@@ -147,23 +147,20 @@ class AnswerLogicManager:
             else:
                 reply_text, next_state = button.reply_text, button.next_state
 
-        # print('AnswerLogicManager -> get_reply -> button:', type(button), button)
-
         if button and button.class_name.startswith('Feedback'):
             parent_button = button
 
         elif button and button.class_name.startswith('Supplier'):
             parent_button = await self.main.button_search_and_action_any_collections(
-                action='get', button_name='WildberriesCabinet')
+                user_id=update.from_user.id, action='get', button_name='WildberriesCabinet')
 
         elif (button and button.class_name == 'GenerateNewResponseToFeedback') or \
                 (message and message.class_name == 'MessageEditFeedbackAnswer'):
             parent_button = await self.main.button_search_and_action_any_collections(
-                action='get', button_name=current_data.get('previous_button'))
-        else:
-            parent_button = None
+                user_id=update.from_user.id, action='get', button_name=current_data.get('previous_button'))
 
-        # print('AnswerLogicManager -> get_reply -> parent_button:', type(parent_button), parent_button)
+        else:
+            parent_button = button.parent_button if button else None
 
         keyboard = await self.create_keyboard(
             buttons=buttons, insert=insert, main_menu=main_menu, parent_button=parent_button)

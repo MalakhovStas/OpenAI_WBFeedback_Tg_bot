@@ -67,16 +67,17 @@ class UpdateListFeedbacks(BaseButton, Utils):
                 buttons = await self.feedback_buttons_logic(supplier=supplier_name_key, update=update)
 
         if supplier_name_key:
-            supplier_button = await self.button_search_and_action_any_collections(action='get',
-                                                                                  button_name=supplier_name_key)
+            supplier_button = await self.button_search_and_action_any_collections(
+                user_id=update.from_user.id, action='get', button_name=supplier_name_key)
+
             supplier_button.children_buttons = buttons
-            # await self.change_name_button(supplier_button, len(buttons) - 1)
+
             unfeeds_supplier = [feed for feed in wb_user.unanswered_feedbacks.values()
-                                if feed.get('supplier') == supplier_button.__class__.__name__]
-            await self.m_utils.change_name_button(supplier_button, len(unfeeds_supplier))
+                                if feed.get('supplier') == supplier_button.class_name]
+
+            await self.m_utils.change_name_button(button=supplier_button, num=len(unfeeds_supplier))
 
         self.children_buttons = buttons
-        # self.children_buttons.append(self)
 
         return self.reply_text, self.next_state
 
@@ -148,7 +149,6 @@ class MessageEnterSupplierIDMode(BaseMessage, Utils):
 
     async def _set_answer_logic(self, update: Message, state: FSMContext | None = None):
         supplier_id = await self.m_utils.check_data(update.text)
-
         if supplier_id:
             msg = await self.bot.send_message(
                 chat_id=update.from_user.id,
@@ -388,7 +388,8 @@ class MessageEnterSignatureForSignatureToTheAnswerButton(BaseMessage):
         await self.bot.delete_message(chat_id=update.from_user.id, message_id=update.message_id)
         data = await state.get_data()
         await self.bot.delete_message(chat_id=update.from_user.id, message_id=data.get('last_handler_sent_message_id'))
-        button = await self.button_search_and_action_any_collections(action='get', button_name=self.parent_name)
+        button = await self.button_search_and_action_any_collections(user_id=update.from_user.id, action='get',
+                                                                     button_name=self.parent_name)
         if button:
             reply_text, next_state = await button._set_answer_logic(update, state)
         return reply_text, next_state
@@ -405,8 +406,7 @@ class SignatureToTheAnswer(BaseButton, Utils):
         return FSMPersonalCabinetStates.enter_signature
 
     def _set_messages(self) -> dict:
-        messages = [
-            MessageEnterSignatureForSignatureToTheAnswerButton(self.button_id, parent_name=self.__class__.__name__)]
+        messages = [MessageEnterSignatureForSignatureToTheAnswerButton(self.button_id, parent_name=self.class_name)]
         return {message.state_or_key: message for message in messages}
 
     async def _set_answer_logic(self, update, state: FSMContext):

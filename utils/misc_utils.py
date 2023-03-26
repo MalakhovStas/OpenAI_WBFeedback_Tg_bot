@@ -6,12 +6,15 @@ from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from datetime import datetime, timedelta, timezone
 
 
-def set_button_name(start_name: str, button_id: str | int) -> tuple[str, str]:
+def set_button_name(button_id: str | int) -> str:
     """ Не асинхронный метод вызывается из __call__ """
     if isinstance(button_id, int):
         button_id = str(button_id)
+
+    #long_btn_id -> 0000058
     long_btn_id = button_id.zfill(7)
-    return start_name[:-7] + long_btn_id, long_btn_id
+    # return start_name[:-7] + long_btn_id, long_btn_id
+    return long_btn_id
 
 
 async def check_data(data: str) -> str | None:
@@ -39,19 +42,21 @@ async def check_notification_time(notif_time: str, user_timezone: str) -> bool:
             start, stop = map(int, notif)
             if start <= timezone_now.hour < stop:
                 result = True
-    # self.logger.info(self.sign + f'check_notif_time {result=} | {notif_time=} | {str(timezone_now)=}')
+    # self.logger.debug(self.sign + f'check_notif_time {result=} | {notif_time=} | {str(timezone_now)=}')
     return result
 
 
-async def change_name_button(button, num):
+async def change_name_button(button, num: int | None = None, minus_one: bool = False):
     i_was = None
     res_re = re.search(r'< \d+ >', button.name)
     if res_re:
         i_was = res_re.group(0)
     was = i_was if i_was else '< 0 >'
 
-    will_be = f"< {num} >"
-    button.name = button.name.replace(was, will_be)
+    if minus_one:
+        num = int(was.strip('<> '))-1
+
+    button.name = button.name.replace(was, f'< {num} >')
     return button
 
 

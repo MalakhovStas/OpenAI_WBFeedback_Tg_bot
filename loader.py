@@ -8,6 +8,7 @@ from pyqiwip2p import AioQiwiP2P
 from config import BOT_TOKEN, QIWI_PRIV_KEY, LOGGER_ERRORS, LOGGER_DEBUG, AUFM_INTERVAL_SECONDS
 from managers.db_manager import DBManager
 from managers.openai_manager import OpenAIManager
+from managers.reload_dump_manager import ReloadDumpManager
 # from managers.reload_dump_manager import ReloadDumpManager
 from managers.security_manager import SecurityManager
 from managers.admins_manager import AdminsManager
@@ -32,7 +33,7 @@ storage = MemoryStorage()
 dp = Dispatcher(bot=bot, storage=storage)
 
 # p2p = AioQiwiP2P(auth_key=QIWI_PRIV_KEY)
-# rdm = ReloadDumpManager(dbase=dbase, logger=logger)
+rdm = ReloadDumpManager(dbase=dbase, logger=logger)
 
 rm = RequestsManager(logger=logger)
 ai = OpenAIManager(logger=logger)

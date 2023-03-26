@@ -5,7 +5,7 @@ from aiogram.types import Message, CallbackQuery, Update
 from aiogram.dispatcher.handler import CancelHandler
 from config import FLOOD_CONTROL, FLOOD_CONTROL_STOP_TIME
 import utils.exception_control
-from loader import bot, security, dbase
+from loader import bot, security, dbase, Base, rdm
 
 
 class AccessControlMiddleware(BaseMiddleware):
@@ -20,6 +20,8 @@ class AccessControlMiddleware(BaseMiddleware):
     @utils.exception_control.exception_handler_wrapper
     async def on_pre_process_update(self, update: Update, update_data: Dict) -> None:
         update = update.message if update.message else update.callback_query
+        # print(update.message.reply_markup.values.get('inline_keyboard')[0][0].text[-7:])
+        # print(Base.general_collection)
 
         user_data = self.manager.storage.data.get(str(update.from_user.id))
         if isinstance(update, CallbackQuery):
@@ -47,6 +49,13 @@ class AccessControlMiddleware(BaseMiddleware):
         pass
 
     @utils.exception_control.exception_handler_wrapper
+    async def on_post_process_update(self, update: Update, post: list, update_data: Dict) -> None:
+        # with open('data.pickle', 'wb') as f:
+        #     pickle.dump(Base.general_collection, f)
+        # print(Base.general_collection_dump)
+        pass
+
+    @utils.exception_control.exception_handler_wrapper
     async def on_pre_process_message(self, message: Message, message_data: Dict) -> None:
         pass
 
@@ -69,13 +78,10 @@ class AccessControlMiddleware(BaseMiddleware):
     @utils.exception_control.exception_handler_wrapper
     async def on_post_process_callback_query(self, call: CallbackQuery, post: list, callback_data: Dict) -> None:
         data = callback_data.get('state')
-        # print(f'в пост апдейт: {call.data=} | {call.message.message_id=}')
-        # previous_message_id
         if not call.data in ['GenerateNewResponseToFeedback', 'DontReplyFeedback']:
-            await data.update_data(previous_button=call.data)#, last_call_message_id=call.message.message_id)
-
-        # if not call.data == 'DefaultButtonForAUFM':
-        #     await data.update_data(last_call_message_id=call.message.message_id)
-
+            await data.update_data(previous_button=call.data)
+            await Base.button_search_and_action_any_collections(
+                user_id=call.from_user.id, action='add',
+                button_name='previous_button', instance_button=call.data, updates_data=True)
 
 
