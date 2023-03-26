@@ -5,7 +5,7 @@ import openai
 from typing import Sequence
 # from utils.admins_send_message import func_admins_message
 
-from config import OpenAI_TOKEN, OpenAI_TIMEOUT, SUPPORT
+from config import OpenAI_TOKEN, OpenAI_TIMEOUT, SUPPORT, OpenAI_ORGANIZATION
 
 
 class OpenAIManager:
@@ -27,6 +27,7 @@ class OpenAIManager:
 
     def __init__(self, logger):
         self.openai = openai
+        self.openai.organization = OpenAI_ORGANIZATION
         self.openai.api_key = OpenAI_TOKEN
         self.logger = logger
         self.sign = self.__class__.__name__+': '
@@ -34,7 +35,6 @@ class OpenAIManager:
     async def answer(self, prompt: str) -> str:
         """ Запрос к ChatGPT"""
         self.logger.info(self.sign + f"question: {prompt[:100]}...")
-
         try:
             response = await asyncio.wait_for(self.openai.Completion.acreate(
                 model="text-davinci-003",

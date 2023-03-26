@@ -101,7 +101,9 @@ class MessageAfterUserEntersSmsCode(BaseMessage, Utils):
     async def _set_answer_logic(self, update: Message, state: FSMContext):
         reply_text = "Код не верный, попробуйте немного позже"
         if await self.get_access_to_wb_api(update=update, state=state, sms_code=update.text):
-            reply_text = "Код верный, получаю данные магазина ... "
+            # reply_text = "Код верный, получаю данные магазина ... "
+            # reply_text, next_state = await SelectAPIMode(new=False)._set_answer_logic(update=update, state=state)
+            reply_text, next_state = await self.parent_button._set_answer_logic(update=update, state=state)
         return reply_text, self.next_state
 
 
@@ -116,8 +118,8 @@ class SelectAPIMode(BaseButton, Utils):
         return [GoToBack(new=False)]
 
     def _set_messages(self) -> dict:
-        messages = [MessageAfterUserEntersPhone(button=self, parent_name=self.class_name),
-                    MessageAfterUserEntersSmsCode(button=self, parent_name=self.class_name)]
+        messages = [MessageAfterUserEntersPhone(button=self, parent_name=self.class_name, parent_button=self),
+                    MessageAfterUserEntersSmsCode(button=self, parent_name=self.class_name, parent_button=self)]
         return {message.state_or_key: message for message in messages}
 
     async def _set_answer_logic(self, update: Message, state: FSMContext):

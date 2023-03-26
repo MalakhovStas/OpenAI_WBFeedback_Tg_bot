@@ -22,7 +22,8 @@ FACE_BOT = '🤖 '
 
 """ Токен ChatGPT и настройки таймаут для openai """
 OpenAI_TOKEN = os.getenv('OPENAI_API_KEY')
-OpenAI_TIMEOUT = 20
+OpenAI_ORGANIZATION = os.getenv('OPENAI_ORGANIZATION')
+OpenAI_TIMEOUT = 10
 
 """ QIWI """
 # https://developer.qiwi.com/ru/payments/#test_data_card
