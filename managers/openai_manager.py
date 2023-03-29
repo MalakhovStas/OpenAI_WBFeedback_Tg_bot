@@ -1,17 +1,15 @@
 import asyncio
-# from asyncio.exceptions import TimeoutError
+from typing import Sequence
 
 import openai
-from typing import Sequence
-# from utils.admins_send_message import func_admins_message
 
-from config import OpenAI_TOKEN, OpenAI_TIMEOUT, OpenAI_ORGANIZATION, DEFAULT_FEED_ANSWER
+from ai_settings import INVITATION, MODEL, TEMPERATURE, MAX_TOKENS, TOP_P, PRESENCE_PENALTY, FREQUENCY_PENALTY, TIMEOUT
+from config import OpenAI_TOKEN, OpenAI_ORGANIZATION, DEFAULT_FEED_ANSWER
 
 
 class OpenAIManager:
     """ Класс Singleton для работы с API ChatGPT """
     __instance = None
-
     __default_bad_answer = DEFAULT_FEED_ANSWER
 
     def __new__(cls, *args, **kwargs):
@@ -26,21 +24,28 @@ class OpenAIManager:
         self.logger = logger
         self.sign = self.__class__.__name__+': '
 
-    async def answer(self, prompt: str) -> str:
+    @staticmethod
+    async def prompt_correct(text: str) -> str:
+        text = text.strip()
+        if not text.endswith('.'):
+            text += '.'
+        return f'{INVITATION} {text}'
+
+    async def answer(self, prompt: str, correct: bool = True) -> str:
         """ Запрос к ChatGPT"""
+        prompt = await self.prompt_correct(text=prompt) if correct else prompt
         self.logger.info(self.sign + f"question: {prompt[:100]}...")
         try:
             response = await asyncio.wait_for(self.openai.Completion.acreate(
-                model="text-davinci-003",
+                model=MODEL,
                 prompt=prompt,
-                # temperature=0.9,
-                temperature=0,
-                max_tokens=1800,
-                top_p=1,
-                frequency_penalty=0,
-                presence_penalty=0,
-                timeout=OpenAI_TIMEOUT
-            ), timeout=OpenAI_TIMEOUT + 3)
+                temperature=TEMPERATURE,
+                max_tokens=MAX_TOKENS,
+                top_p=TOP_P,
+                presence_penalty=PRESENCE_PENALTY,
+                frequency_penalty=FREQUENCY_PENALTY,
+                timeout=TIMEOUT
+            ), timeout=TIMEOUT + 3)
 
             # print(response)
             if response and isinstance(response.get('choices'), Sequence):
@@ -79,7 +84,7 @@ class OpenAIManager:
     async def reply_feedback(self, feedback: str, feed_name: str | None = None) -> tuple | str:
         answer = None
         if await self._check_type_str(feedback):
-            answer = await self.answer(f'напиши ответ на отзыв: {feedback}')
+            answer = await self.answer(prompt=feedback)
 
         if feed_name:
             return feed_name, answer
@@ -88,7 +93,7 @@ class OpenAIManager:
 
     async def some_question(self, prompt: str) -> str:
         if await self._check_type_str(prompt):
-            return await self.answer(prompt)
+            return await self.answer(prompt=prompt, correct=False)
 
     async def automatic_generate_answer_for_many_feeds(self, feedbacks: dict) -> dict:
         data = [self.reply_feedback(feedback=feed_data.get('text'), feed_name=feed_name)

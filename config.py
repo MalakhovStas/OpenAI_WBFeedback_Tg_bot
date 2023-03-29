@@ -34,7 +34,6 @@ DEFAULT_FEED_ANSWER = ' \t Cгенерируйте ответ кнопкой\n \
 """ Токен ChatGPT и настройки таймаут для openai """
 OpenAI_TOKEN = os.getenv('OPENAI_API_KEY')
 OpenAI_ORGANIZATION = os.getenv('OPENAI_ORGANIZATION')
-OpenAI_TIMEOUT = 10
 
 """ QIWI """
 # https://developer.qiwi.com/ru/payments/#test_data_card
@@ -129,31 +128,6 @@ AUFM_ONLY_DATE = datetime.now().strftime('%Y-%m-%d')
 NUM_FEED_BUTTONS = 10
 
 """ Настройки прокси """
-# USE_PROXI = False
 USE_PROXI = True
 PROXI_FILE = 'proxi.txt'
-# 113.30.154.191
 TYPE_PROXI = 'SOCKS5'
-PROXI_PORT = 5309
-PROXI_LOGIN = 'bowiabti'
-PROXI_PASSWORD = 'kxte07lwuxk0'
-
-
-# TYPE_PROXI = 'HTTPS'
-# PROXI_PORT = 7951
-# PROXI_LOGIN = 'i17t3011107'
-# PROXI_PASSWORD = 'i7j5VSiP8h'
-"""
-Александр Андреев, [23.02.2023 16:22]
-Логин: i17t3011107
-Пароль: i7j5VSiP8h
-
-Список прокси вы можете получить на странице http://goldproxy.net/1800ip.txt
-порт: 7951 - тип HTTP/HTTPS
-
-Александр Андреев, [23.02.2023 16:23]
-5841
-возможно этот порт сокс 5
-"""
-
-

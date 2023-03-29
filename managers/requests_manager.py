@@ -1,12 +1,12 @@
 import asyncio
 import json
 import random
+from typing import Iterable
 
 import aiohttp
 from aiohttp_proxy import ProxyConnector, ProxyType
-from typing import Iterable
 
-from config import USE_PROXI, PROXI_FILE, PROXI_PORT, PROXI_LOGIN, PROXI_PASSWORD, TYPE_PROXI
+from config import USE_PROXI, PROXI_FILE, TYPE_PROXI
 
 
 class RequestsManager:
@@ -66,38 +66,42 @@ class RequestsManager:
         return result
 
     @staticmethod
+    async def check_proxi(proxi):
+        # TODO create logic checking proxi
+        return True
+
+    @staticmethod
     def get_proxies() -> list:
         with open(PROXI_FILE, 'r') as file:
             proxies = file.read().splitlines()
         return proxies if proxies else list()
 
-    async def check_proxi(self, proxi):
-        # TODO create logic check_proxi
-        return True
-
     async def get_proxi(self):
-        if not USE_PROXI:
-            return list()
-        proxi = random.choice(self.proxies)
-        if await self.check_proxi(proxi):
-            self.logger.debug(self.sign + f'use {proxi=} | {TYPE_PROXI=}')
-            return proxi
+        ip, port, login, password = None, None, None, None
+
+        if USE_PROXI:
+            proxi = random.choice(self.proxies)
+            if await self.check_proxi(proxi):
+                ip, port, login, password = proxi.split('\t')
+                self.logger.debug(self.sign + f'\033[31mUSE PROXI -> '
+                                              f'{ip=} | {port=} | {login=} | {password=} | {TYPE_PROXI=}\033[0m')
+        return ip, port, login, password
 
     async def aio_request(self, url, headers, method: str = 'get', data: dict | None = None) -> dict | list:
         """ Повторяет запрос, если во время выполнения запроса произошло исключение из Exception"""
         step = 1
         result = dict()
-        proxi = await self.get_proxi()
+        ip, port, login, password = await self.get_proxi()
         data = json.dumps(data) if isinstance(data, (dict, list)) else None
         self.logger.debug(self.sign+f'{step=} func aio_request -> sending request to: '
                                     f'{url=} | {method=} | {str(data)[:100]=}... | {str(headers)[:100]=}...')
-        if proxi:
+        if ip and port and login and password:
             connector = ProxyConnector(
                 proxy_type=self.proxi_types.get(TYPE_PROXI.lower()),
-                host=proxi,
-                port=PROXI_PORT,
-                username=PROXI_LOGIN,
-                password=PROXI_PASSWORD,
+                host=ip,
+                port=port,
+                username=login,
+                password=password,
                 # rdns=True ???
             )
         else:
