@@ -46,7 +46,7 @@ class AutoUpdateFeedbackManager:
         total_suppliers = 0
         total_found_new_unanswered_feedbacks = 0
         wb_users = self.dbase.select_all_wb_users()
-        self.logger.info(self.sign + f'i start looking -> finding_unanswered_feedbacks -> num users:{len(wb_users)}')
+        self.logger.info(self.sign + f'\033[31mSTART LOOKING FEEDBACKS\033[0m -> num users:{len(wb_users)}')
 
         for wb_user in wb_users:
             if not await self.m_utils.check_notification_time(notif_time=wb_user.notification_times,
@@ -104,11 +104,20 @@ class AutoUpdateFeedbackManager:
                                                     disable_web_page_preview=True)
                     if supplier_button:
                         await self.base.m_utils.change_name_button(button=supplier_button, num=supplier_total_feeds)
-                        supplier_button.children_buttons = \
-                            [*supplier_button.children_buttons, *buttons][:NUM_FEED_BUTTONS]
+
+                        for button in buttons:
+                            if button.class_name == 'GoToBack' or len(supplier_button.children_buttons) > NUM_FEED_BUTTONS:
+                                break
+                            else:
+                                supplier_button.children_buttons.insert(-1, button)
+
+
+                        # [supplier_button.children_buttons.insert(-1, button) for button in buttons if button.class_name != 'GotoBack']
+                        # supplier_button.children_buttons = \
+                        #     [*supplier_button.children_buttons, *buttons][:NUM_FEED_BUTTONS]
 
         spent_time = (datetime.utcfromtimestamp(0) + timedelta(seconds=time.time() - start_time)).strftime('%H:%M:%S')
-        self.logger.info(self.sign + f'FINISHED -> {len(wb_users)} | {total_suppliers=} | '
+        self.logger.info(self.sign + f'\033[31mFINISHED\033[0m -> {len(wb_users)} | {total_suppliers=} | '
                                      f'{total_found_new_unanswered_feedbacks=} | {spent_time=}')
 
 

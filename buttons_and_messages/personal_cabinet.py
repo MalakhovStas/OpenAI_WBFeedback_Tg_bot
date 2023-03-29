@@ -1,5 +1,4 @@
 import asyncio
-import itertools
 
 from aiogram.dispatcher import FSMContext
 from aiogram.types import CallbackQuery, Message
@@ -24,9 +23,6 @@ timezones = [KaliningradUtcUp2(),
              KamchatkaUtcUp12()]
 
 
-# Au7n8BPw0O7ADPCM2MEMQh1PfoKMeTuH7CT-Pnn-_eIHretpsewN14c9_5RyptC0DYc7ttIvfxBTYkcDfzyhNoe2Vq_haFr4MksJ8LKogBwrtA
-
-
 class UpdateListFeedbacks(BaseButton, Utils):
 
     def _set_name(self) -> str:
@@ -36,41 +32,53 @@ class UpdateListFeedbacks(BaseButton, Utils):
         return FACE_BOT + '<b>Выберите отзыв:</b>'
 
     async def _set_answer_logic(self, update: CallbackQuery, state: FSMContext) -> tuple[str, str | None]:
-        reply_text, next_state = self.default_not_feeds_in_supplier, self.next_state
+        reply_text, next_state = self.reply_text, self.next_state
         data = await state.get_data()
         user_id = update.from_user.id
         supplier_name_key = data.get('previous_button')
-
+        supplier_button = None
         feedbacks = dict()
         buttons = []
 
-        if previous_button_name := await self.button_search_and_action_any_collections(
-                user_id=user_id, action='get', button_name='previous_button', updates_data=True):
-            """Берем имя магазина из своей коллекции"""
-            supplier_name_key = previous_button_name
-
-        msg = await self.bot.send_message(chat_id=user_id, text=self.default_download_information.format(
-            about='Загружаю информацию'))
-
-        if supplier_name_key.startswith('SupplierParsing'):
-            await self.wb_parsing(supplier_id=supplier_name_key, update=update)
-        else:
-            await self.wb_api.get_feedback_list(supplier=supplier_name_key, user_id=user_id)
-
-        wb_user = self.dbase.wb_user_get_or_none(user_id=user_id)
-
-        await self.bot.delete_message(chat_id=user_id, message_id=msg.message_id)
-
-        feedbacks = dict(list({key: val for key, val in wb_user.unanswered_feedbacks.items()
-                               if key == supplier_name_key})[0:NUM_FEED_BUTTONS])
-
-        buttons = await self.utils_get_or_create_buttons(collection=feedbacks, class_type='feedback', update=update,
-                                                         supplier_name_key=supplier_name_key, user_id=user_id)
-        if not any(button.class_name.startswith('Feedback') for button in buttons):
-            buttons = await self.feedback_buttons_logic(supplier=supplier_name_key, update=update)
+        """Берем имя магазина из своей коллекции"""
+        supplier_name_key = await self.button_search_and_action_any_collections(user_id=user_id, action='get',
+                                                                                button_name='previous_button',
+                                                                                updates_data=True)
         if supplier_name_key:
             supplier_button = await self.button_search_and_action_any_collections(
-                user_id=update.from_user.id, action='get', button_name=supplier_name_key)
+                user_id=user_id, action='get', button_name=supplier_name_key)
+
+        if not supplier_button:
+            return self.default_not_feeds_in_supplier, self.next_state
+
+        supplier_button = await self.update_button_children_buttons_from_db(user_id=user_id,
+                                                                            supplier_button=supplier_button)
+        if len(supplier_button.children_buttons) > NUM_FEED_BUTTONS:
+            self.children_buttons = supplier_button.children_buttons
+
+        else:
+            msg = await self.bot.send_message(chat_id=user_id, text=self.default_download_information.format(
+                about='Загружаю информацию'))
+            if supplier_name_key.startswith('SupplierParsing'):
+                await self.wb_parsing(supplier_id=supplier_name_key, update=update)
+            else:
+                await self.wb_api.get_feedback_list(supplier=supplier_name_key, user_id=user_id)
+
+            wb_user = self.dbase.wb_user_get_or_none(user_id=user_id)
+
+            await self.bot.delete_message(chat_id=user_id, message_id=msg.message_id)
+
+            feedbacks = dict(list({key: val for key, val in wb_user.unanswered_feedbacks.items()
+                                   if key == supplier_name_key})[0:NUM_FEED_BUTTONS])
+
+            buttons = await self.utils_get_or_create_buttons(collection=feedbacks, class_type='feedback', update=update,
+                                                             supplier_name_key=supplier_name_key, user_id=user_id)
+            if not any(button.class_name.startswith('Feedback') for button in buttons):
+                buttons = await self.feedback_buttons_logic(supplier=supplier_name_key, update=update)
+
+            # if supplier_name_key:
+            #     supplier_button = await self.button_search_and_action_any_collections(
+            #         user_id=user_id, action='get', button_name=supplier_name_key)
 
             supplier_button.children_buttons = buttons
 
@@ -79,10 +87,10 @@ class UpdateListFeedbacks(BaseButton, Utils):
 
             await self.m_utils.change_name_button(button=supplier_button, num=len(unfeeds_supplier))
 
-        self.children_buttons = buttons
+            self.children_buttons = buttons
 
-        if [button for button in self.children_buttons if button.class_name != 'GoToBack']:
-            reply_text = self.reply_text
+            if not [button for button in self.children_buttons if button.class_name != 'GoToBack']:
+                reply_text = self.default_not_feeds_in_supplier
 
         return reply_text, next_state
 

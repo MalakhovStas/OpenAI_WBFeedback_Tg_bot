@@ -24,7 +24,6 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 logger.add(**LOGGER_ERRORS)
 logger.add(**LOGGER_DEBUG)
 
-# dbase = DBManager(logger=logger)
 dbase = DBManager()
 security = SecurityManager(dbase=dbase, logger=logger)  # должен быть первым из менеджеров
 

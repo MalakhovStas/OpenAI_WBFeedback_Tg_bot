@@ -73,7 +73,7 @@ class AnswerLogicManager:
 
         if any(button.class_name.startswith('Feedback') for button in buttons) or \
                 (not parent_button.class_name in ['EnterSupplierID', 'SignatureToTheAnswer',
-                                                  'MainMenu', 'SetUpNotificationTimes'] and
+                                                  'MainMenu', 'SetUpNotificationTimes', 'SelectAPIMode'] and
                  not [button for button in buttons if not button.class_name == 'GoToBack']):
 
             keyboard.insert(InlineKeyboardButton(text='🌐 Обновить информацию', callback_data='UpdateListFeedbacks'))
@@ -173,7 +173,7 @@ class AnswerLogicManager:
 
         if button and hasattr(button, 'class_name') and \
                 (button.class_name.startswith('Feedback') or button.class_name in
-                 ['EnterSupplierID', 'SignatureToTheAnswer', 'AnswerManagement']):
+                 ['EnterSupplierID', 'SignatureToTheAnswer', 'AnswerManagement', 'SelectAPIMode']):
             parent_button = button
 
         elif button and button.class_name.startswith('Supplier'):
@@ -183,6 +183,7 @@ class AnswerLogicManager:
                 pb_name = 'SelectSupplierIDMode'
             else:
                 pb_name = 'WildberriesCabinet'
+
             parent_button = await self.main.button_search_and_action_any_collections(
                 user_id=update.from_user.id, action='get', button_name=pb_name)
 

@@ -5,7 +5,7 @@ from aiogram.types import Message, CallbackQuery, Update
 from aiogram.dispatcher.handler import CancelHandler
 from config import FLOOD_CONTROL, FLOOD_CONTROL_STOP_TIME
 import utils.exception_control
-from loader import bot, security, dbase, Base, rdm
+from loader import bot, security, dbase, Base, rdm, logger
 
 
 class AccessControlMiddleware(BaseMiddleware):
@@ -16,6 +16,7 @@ class AccessControlMiddleware(BaseMiddleware):
 
     def __init__(self) -> None:
         super().__init__()
+        self.sign = self.__class__.__name__ + ': '
 
     @utils.exception_control.exception_handler_wrapper
     async def on_pre_process_update(self, update: Update, update_data: Dict) -> None:
@@ -70,6 +71,7 @@ class AccessControlMiddleware(BaseMiddleware):
 
     @utils.exception_control.exception_handler_wrapper
     async def on_pre_process_callback_query(self, call: CallbackQuery, callback_data: Dict) -> None:
+        # logger.warning(f'{self.sign} pre_process -> call.data: \033[31m{call.data}\033[0m')
         pass
 
     @utils.exception_control.exception_handler_wrapper
@@ -83,6 +85,7 @@ class AccessControlMiddleware(BaseMiddleware):
         #     user_id=call.from_user.id, action='get', button_name='previous_button', updates_data=True)
 
         # print('call.data:', call.data)
+        # logger.warning(f'{self.sign} post_process -> call.data: \033[31m{call.data}\033[0m')
         # print('prev_button_name', prev_button_name)
 
         if not call.data in ['GenerateNewResponseToFeedback', 'DontReplyFeedback', 'UpdateListFeedbacks']:#, 'GoToBack']:

@@ -40,33 +40,33 @@ class AnswerManagement(BaseButton, Utils):
 
     # def _set_reply_text(self) -> str:
     #     return FACE_BOT + '<b>Выберите отзыв:</b>'
-
+    #
     # async def _set_answer_logic(self, update: CallbackQuery, state: FSMContext):
     #     reply_text, next_state = self.reply_text, self.next_state
     #     user_id = update.from_user.id
-
-        # wb_user = self.dbase.wb_user_get_or_none(user_id=user_id)
-        # feedbacks = dict(list(wb_user.unanswered_feedbacks.items())[:NUM_FEED_BUTTONS])
-        # buttons = await self.utils_get_or_create_buttons(collection=feedbacks,
-        #                                                  class_type='feedback',
-        #                                                  update=update,
-        #                                                  user_id=user_id)
-        # print(buttons)
-        # self.children_buttons = buttons[:-1]
-        # result = await self.get_access_to_wb_api(update=update, state=state)
-        # if isinstance(result, tuple):
-        #     reply_text, next_state = result
-        # else:
-        #
-        #     if suppliers_buttons := await self.api_suppliers_buttons_logic(update=update, state=state, user_id=user_id):
-        #         self.children_buttons = suppliers_buttons
-        #
-        #         # [*suppliers_buttons, back_button]
-        #         back_button = GoToBack(new=False)
-        #         if not back_button in self.children_buttons:
-        #             self.children_buttons.append(back_button)
-
-        # return reply_text, next_state
+    #
+    #     wb_user = self.dbase.wb_user_get_or_none(user_id=user_id)
+    #     feedbacks = dict(list(wb_user.unanswered_feedbacks.items())[:NUM_FEED_BUTTONS])
+    #     buttons = await self.utils_get_or_create_buttons(collection=feedbacks,
+    #                                                      class_type='feedback',
+    #                                                      update=update,
+    #                                                      user_id=user_id)
+    #     # print(buttons)
+    #     self.children_buttons = buttons[:-1]
+    #     result = await self.get_access_to_wb_api(update=update, state=state)
+    #     if isinstance(result, tuple):
+    #         reply_text, next_state = result
+    #     else:
+    #
+    #         if suppliers_buttons := await self.api_suppliers_buttons_logic(update=update, state=state, user_id=user_id):
+    #             self.children_buttons = suppliers_buttons
+    #
+    #             # [*suppliers_buttons, back_button]
+    #             back_button = GoToBack(new=False)
+    #             if not back_button in self.children_buttons:
+    #                 self.children_buttons.append(back_button)
+    #
+    #     return reply_text, next_state
 
 
 class MessageOnceForCreateResponseManuallyButton(BaseMessage):

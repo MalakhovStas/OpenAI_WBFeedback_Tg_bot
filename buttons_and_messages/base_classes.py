@@ -453,6 +453,11 @@ class GoToBack(BaseButton):
             reply_text, next_state = result_button.reply_text, result_button.next_state
 
         self.children_buttons = result_button.children_buttons
+        # update.data = result_button.callback
+        # print('update.data1', update.data)
+        update.data = result_button.class_name
+        # print('update.data2', update.data)
+
         return reply_text, next_state
 
 
@@ -493,6 +498,8 @@ class ParsingFeedbackHasBeenProcessed(BaseButton):
                 self.children_buttons = supplier_button.children_buttons
 
                 reply_text, next_state = supplier_button.reply_text, supplier_button.next_state
+
+                update.data = supplier_button.class_name  # Это ВАЖНО!!! и работает
         return reply_text, next_state
 
 
@@ -563,6 +570,8 @@ class PostFeedback(BaseButton):
                 self.children_buttons = supplier_button.children_buttons
 
                 reply_text, next_state = supplier_button.reply_text, supplier_button.next_state
+
+                update.data = supplier_button.class_name  # Это ВАЖНО!!! и работает
         return reply_text, next_state
 
 
@@ -586,8 +595,13 @@ class EditFeedback(BaseButton):
 
         if previous_button_name := await self.button_search_and_action_any_collections(
                 user_id=user_id, action='get', button_name='previous_button', updates_data=True):
+            logger.warning(f'\033[31m{previous_button_name=}\033[0m')
+
             if feed_button := await self.button_search_and_action_any_collections(
                     user_id=user_id, action='get', button_name=previous_button_name):
+
+                logger.warning(f'\033[31m{feed_button=}\033[0m')
+
                 reply_text = feed_button.any_data.get('answer')
 
         return reply_text, self.next_state
@@ -687,6 +701,7 @@ class DontReplyFeedback(BaseButton):
 
                 reply_text, next_state = supplier_button.reply_text, supplier_button.next_state
 
+                update.data = supplier_button.class_name  # Это ВАЖНО!!! и работает
         return reply_text, next_state
 
 
@@ -1088,3 +1103,22 @@ class Utils(Base):
                 supplier_name_key=supplier_name_key
             )
         return button
+
+    @classmethod
+    async def update_button_children_buttons_from_db(cls, user_id, supplier_button: Any) -> Any:
+        wb_user = cls.dbase.wb_user_get_or_none(user_id=user_id)
+
+        result_feeds = dict()
+
+        for feed_name, feed_data in wb_user.unanswered_feedbacks.items():
+            if feed_data.get('supplier') == supplier_button.class_name and len(result_feeds) < NUM_FEED_BUTTONS:
+                result_feeds.update({feed_name: feed_data})
+            else:
+                break
+
+        if buttons := await cls.utils_get_or_create_buttons(collection=result_feeds, class_type='feedback',
+                                                            supplier_name_key=supplier_button.class_name,
+                                                            user_id=user_id):
+            supplier_button.children_buttons = buttons
+
+        return supplier_button

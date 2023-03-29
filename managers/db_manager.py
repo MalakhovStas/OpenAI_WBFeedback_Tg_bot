@@ -232,19 +232,19 @@ class DBManager:
             button.reply_text = button_data.get('reply_text')
             button.save()
         if fact_create:
-            self.logger.debug(self.sign + f'create new {button.name=} | {button_data=}')
+            self.logger.debug(self.sign + f'-> OK CREATE NEW -> {button.name=} | {button_data=}')
         else:
-            self.logger.debug(self.sign + f'update {button.name=} | {button_data=}')
+            self.logger.debug(self.sign + f'-> OK UPDATE -> {button.name=} | {button_data=}')
         return button
 
     def update_button(self, button_id: int, update_data: dict) -> Tables.buttons | None:
         button = self.tables.buttons.get_or_none(button_id=button_id)
 
         if not self.tables.buttons.update(**update_data).where(self.tables.buttons.button_id == button_id).execute():
-            self.logger.warning(self.sign + f'update_button ERROR -> not update: {button.__data__=}')
+            self.logger.warning(self.sign + f'-> ERROR -> not update button: {button.__data__=}')
 
         button = self.tables.buttons.get_or_none(button_id=button_id)
-        self.logger.debug(self.sign + f'update_button -> {button.name=} | {update_data=}')
+        self.logger.debug(self.sign + f'-> OK UPDATE -> {button.name=} | {update_data=}')
         return button
 
     """Методы работы с таблицей messages"""
