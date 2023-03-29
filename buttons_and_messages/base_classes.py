@@ -542,7 +542,7 @@ class PostFeedback(BaseButton):
                     x_supplier_id=feed_button.parent_name.lstrip('Supplier'),
                     # При таком имени FeedbackkweEKYcB5HDhYKpHlFbv делает так weEKYcB5HDhYKpHlFbv т.е удаляет лишнийсимвол k
                     # feedback_id=feed_button.class_name.lstrip('Feedback')
-                    feedback_id=feed_button.class_name.a.strip()[8:],  # Это работает хорошо
+                    feedback_id=feed_button.class_name.strip()[8:],  # Это работает хорошо
                     feedback_answer__text=feedback_answer_text,
                     update=update
                 )
