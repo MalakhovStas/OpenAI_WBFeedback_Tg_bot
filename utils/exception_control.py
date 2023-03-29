@@ -56,9 +56,9 @@ def exception_handler_wrapper(func: Callable) -> Callable:
                     from utils import admins_send_message
                     await admins_send_message.func_admins_message(update=update, exc=exc)
 
-                    text = f'&#9888 В моей программе произошла непредвиденная ошибка, ' \
-                           f'попробуйте ещё раз, или обратитесь в поддержку @{SUPPORT}'
-                    await bot.send_message(chat_id=update.from_user.id, text=text)
+                    # text = f'&#9888 В моей программе произошла непредвиденная ошибка, ' \
+                    #        f'попробуйте ещё раз, или обратитесь в поддержку @{SUPPORT}'
+                    # await bot.send_message(chat_id=update.from_user.id, text=text)
 
                     state_user = FSMContext(storage=storage, chat=update.from_user.id, user=update.from_user.id)
                     await state_user.reset_state()

@@ -1,3 +1,4 @@
+import asyncio
 import itertools
 
 from aiogram.dispatcher import FSMContext
@@ -35,22 +36,24 @@ class UpdateListFeedbacks(BaseButton, Utils):
         return FACE_BOT + '<b>Выберите отзыв:</b>'
 
     async def _set_answer_logic(self, update: CallbackQuery, state: FSMContext) -> tuple[str, str | None]:
+        reply_text, next_state = self.default_not_feeds_in_supplier, self.next_state
         data = await state.get_data()
         user_id = update.from_user.id
         supplier_name_key = data.get('previous_button')
 
-        # todo убрать
-        # print('supplier_name_key', supplier_name_key)
-
         feedbacks = dict()
         buttons = []
 
+        if previous_button_name := await self.button_search_and_action_any_collections(
+                user_id=user_id, action='get', button_name='previous_button', updates_data=True):
+            """Берем имя магазина из своей коллекции"""
+            supplier_name_key = previous_button_name
+
         msg = await self.bot.send_message(chat_id=user_id, text=self.default_download_information.format(
-            about='Загружаю информацию о отзывах'))
+            about='Загружаю информацию'))
 
         if supplier_name_key.startswith('SupplierParsing'):
             await self.wb_parsing(supplier_id=supplier_name_key, update=update)
-
         else:
             await self.wb_api.get_feedback_list(supplier=supplier_name_key, user_id=user_id)
 
@@ -58,14 +61,13 @@ class UpdateListFeedbacks(BaseButton, Utils):
 
         await self.bot.delete_message(chat_id=user_id, message_id=msg.message_id)
 
-        if feedbacks := dict(itertools.islice(wb_user.unanswered_feedbacks.items(), NUM_FEED_BUTTONS)):
-            buttons = await self.utils_get_or_create_buttons(
-                collection=feedbacks, class_type='feedback', update=update,
-                supplier_name_key=supplier_name_key, user_id=user_id)
+        feedbacks = dict(list({key: val for key, val in wb_user.unanswered_feedbacks.items()
+                               if key == supplier_name_key})[0:NUM_FEED_BUTTONS])
 
-            if not any(button.class_name.startswith('Feedback') for button in buttons):
-                buttons = await self.feedback_buttons_logic(supplier=supplier_name_key, update=update)
-
+        buttons = await self.utils_get_or_create_buttons(collection=feedbacks, class_type='feedback', update=update,
+                                                         supplier_name_key=supplier_name_key, user_id=user_id)
+        if not any(button.class_name.startswith('Feedback') for button in buttons):
+            buttons = await self.feedback_buttons_logic(supplier=supplier_name_key, update=update)
         if supplier_name_key:
             supplier_button = await self.button_search_and_action_any_collections(
                 user_id=update.from_user.id, action='get', button_name=supplier_name_key)
@@ -79,7 +81,10 @@ class UpdateListFeedbacks(BaseButton, Utils):
 
         self.children_buttons = buttons
 
-        return self.reply_text, self.next_state
+        if [button for button in self.children_buttons if button.class_name != 'GoToBack']:
+            reply_text = self.reply_text
+
+        return reply_text, next_state
 
 
 class MessageAfterUserEntersPhone(BaseMessage, Utils):
@@ -103,9 +108,6 @@ class MessageAfterUserEntersSmsCode(BaseMessage, Utils):
         user_id = update.from_user.id
 
         if await self.get_access_to_wb_api(update=update, state=state, sms_code=update.text):
-            # reply_text = "Код верный, получаю данные магазина ... "
-            # reply_text, next_state = await SelectAPIMode(new=False)._set_answer_logic(update=update, state=state)
-            # reply_text, next_state = await self.parent_button._set_answer_logic(update=update, state=state)
             reply_text, next_state = self.parent_button.reply_text, self.next_state
             if suppliers_buttons := await self.api_suppliers_buttons_logic(update=update, state=state, user_id=user_id):
                 self.children_buttons = suppliers_buttons
@@ -115,7 +117,7 @@ class MessageAfterUserEntersSmsCode(BaseMessage, Utils):
 
 class SelectAPIMode(BaseButton, Utils):
     def _set_name(self) -> str:
-        return 'Режим работы по API'
+        return 'Магазины по API \t 🔐'  # 🔑 🔐 🗝
 
     def _set_reply_text(self) -> str | None:
         return FACE_BOT + '<b>Выберите магазин:</b>'
@@ -136,8 +138,13 @@ class SelectAPIMode(BaseButton, Utils):
         if isinstance(result, tuple):
             reply_text, next_state = result
         else:
+
             if suppliers_buttons := await self.api_suppliers_buttons_logic(update=update, state=state, user_id=user_id):
                 self.children_buttons = suppliers_buttons
+
+                back_button = GoToBack(new=False)
+                if not back_button in self.children_buttons:
+                    self.children_buttons.append(back_button)
 
         return reply_text, next_state
 
@@ -156,39 +163,46 @@ class MessageEnterSupplierIDMode(BaseMessage, Utils):
         return [GoToBack(new=False)]
 
     async def _set_answer_logic(self, update: Message, state: FSMContext | None = None):
+        user_id = update.from_user.id
         supplier_id = await self.m_utils.check_data(update.text)
         if supplier_id:
-            msg = await self.bot.send_message(
-                chat_id=update.from_user.id,
-                text=self.default_download_information.format(about='Загружаю информацию о магазине')
-            )
+            # wait_msg = await self.bot.send_message(
+            #     chat_id=update.from_user.id,
+            #     text=self.default_download_information.format(about='Загружаю информацию о магазине')
+            # )
 
-            reply_text, next_state = self.default_service_in_dev, self.next_state  # тут нужно reset state
-            await self.wb_parsing(supplier_id=supplier_id, update=update)
+            wb_user = self.dbase.wb_user_get_or_none(user_id=user_id)
+            if supplier_id in [str(val.get('oldID')) for key, val in wb_user.suppliers.items()]:
+                self.children_buttons = []
+                return FACE_BOT + f'<b>Этот магазин уже в списке ваших магазинов</b>', None
 
-            # TODO вызываем менеджера по парсингу для поиска и создания нового supplier и его feedbacks
+            reply_text, next_state = self.default_service_in_dev, self.next_state
+
+            await self.wb_parsing(supplier_id=supplier_id, update=update, user_id=user_id)
+
             if suppliers_buttons := await self.parsing_suppliers_buttons_logic(
-                    update=update, state=state, user_id=update.from_user.id):
-                # print('suppliers_buttons:', suppliers_buttons)
+                    update=update, state=state, user_id=user_id):
+
                 reply_text = self.reply_text
                 self.children_buttons = suppliers_buttons
 
             else:
                 reply_text, next_state = f'Магазин с ID: {supplier_id} не найден, проверьте ID', None
 
-            await self.bot.delete_message(chat_id=update.from_user.id, message_id=msg.message_id)
+            # await self.bot.delete_message(chat_id=update.from_user.id, message_id=wait_msg.message_id)
         else:
             reply_text, next_state = self.default_incorrect_data_input_text.format(text='введите ID магазина'), None
+            self.children_buttons = []
 
         return reply_text, next_state
 
 
 class EnterSupplierID(BaseButton):
     def _set_name(self) -> str:
-        return ' 📥 Добавить магазин'
+        return '🔍 \t 📥 \t Добавить магазин'  # 🔍 🔎 📥
 
     def _set_reply_text(self) -> str | None:
-        return FACE_BOT + 'Введите ID вашего магазина'
+        return FACE_BOT + '<b>Введите ID вашего магазина:</b>'
 
     def _set_children(self) -> list:
         return [GoToBack(new=False)]
@@ -203,25 +217,21 @@ class EnterSupplierID(BaseButton):
 
 class SelectSupplierIDMode(BaseButton, Utils):
     def _set_name(self) -> str:
-        return 'Работа по ID магазина'
+        return 'Магазины по ID \t 🆓'  # 📖 🆓 🔓
 
     def _set_reply_text(self) -> str | None:
         return FACE_BOT + '<b>Выберите магазин:</b>'
 
     def _set_children(self) -> list:
-        return [EnterSupplierID(parent_button=self, parent_name=self.class_name), GoToBack(new=False)]
+        return [EnterSupplierID(parent_name=self.class_name, parent_button=self), GoToBack(new=False)]
 
     async def _set_answer_logic(self, update, state):
         reply_text, next_state = FACE_BOT + ' <b>Магазинов пока нет, добавьте</b>', self.next_state
 
         if parsing_suppliers := await self.parsing_suppliers_buttons_logic(update=update, state=state,
                                                                            user_id=update.from_user.id):
-            # print('parsing_suppliers', parsing_suppliers)
             reply_text = self.reply_text
-            # parsing_suppliers.insert(-1, EnterSupplierID(new=False))
-            # parsing_suppliers.insert(-1, EnterSupplierID(new=False))
-            # parsing_suppliers.append(EnterSupplierID(new=False))
-            # parsing_suppliers.insert(-1, GoToBack(new=False))
+
             back = GoToBack(new=False)
             enter_supplier = EnterSupplierID(new=False)
             if back in parsing_suppliers:
@@ -237,17 +247,17 @@ class SelectSupplierIDMode(BaseButton, Utils):
 class WildberriesCabinet(BaseButton):
 
     def _set_name(self) -> str:
-        return '🏪 Мои магазины'
+        return '🏪 \t Мои магазины'
 
     def _set_reply_text(self) -> str:
-        return FACE_BOT + 'Выберите режим работы:'
+        return FACE_BOT + '<b>Выберите список магазинов:</b>'
 
     def _set_next_state(self) -> str | None:
         return 'reset_state'
 
     def _set_children(self) -> list:
-        return [SelectAPIMode(parent_button=self, parent_name=self.class_name),
-                SelectSupplierIDMode(parent_button=self, parent_name=self.class_name),
+        return [SelectAPIMode(parent_name=self.class_name, parent_button=self),
+                SelectSupplierIDMode(parent_name=self.class_name, parent_button=self),
                 GoToBack(new=False)]
 
 
@@ -357,17 +367,17 @@ class EnterYourself(BaseButton):
 
 class SetUpNotificationTimes(BaseButton):
     def _set_name(self) -> str:
-        return '"⏰ Время получения уведомлений'
+        return '⏰ \t Время получения уведомлений'
 
     def _set_reply_text(self) -> str:
         return FACE_BOT + '<b>Выберите удобное время уведомления:</b>'
 
     def _set_children(self) -> list:
-        return [AroundTheClock(parent_name=self.__class__.__name__),
-                DayFrom9To18Hours(parent_name=self.__class__.__name__),
-                FullDayFrom9To21Hours(parent_name=self.__class__.__name__),
-                EnterYourself(parent_name=self.__class__.__name__),
-                # GoToBack(new=False)
+        return [AroundTheClock(parent_name=self.class_name, parent_button=self),
+                DayFrom9To18Hours(parent_name=self.class_name, parent_button=self),
+                FullDayFrom9To21Hours(parent_name=self.class_name, parent_button=self),
+                EnterYourself(parent_name=self.class_name, parent_button=self),
+                GoToBack(new=False)
                 ]
 
 
@@ -376,9 +386,6 @@ class MessageEnterSignatureForSignatureToTheAnswerButton(BaseMessage):
     def _set_state_or_key(self) -> str:
         return 'FSMPersonalCabinetStates:enter_signature'
 
-    def _set_reply_text(self) -> str:
-        return FACE_BOT + 'Ваша новая подпись сохранена'
-
     def _set_next_state(self) -> str:
         return 'reset_state'
 
@@ -386,17 +393,32 @@ class MessageEnterSignatureForSignatureToTheAnswerButton(BaseMessage):
         return [GoToBack(new=False)]
 
     async def _set_answer_logic(self, update, state: FSMContext):
-        reply_text, next_state = self.reply_text, self.next_state
+        user_id = update.from_user.id
+        reply_text, next_state = self.default_bad_text, self.next_state
+
+        if update.text.replace('"', '').replace(' ', '') == 'del':
+            new_signature = None
+            wait_msg_text = '<b>Подпись удалена</b>'
+        else:
+            new_signature = update.text
+            wait_msg_text = '<b>Новая подпись установлена</b>'
 
         self.dbase.update_wb_user(
-            user_id=update.from_user.id,
-            update_data={'signature_to_answer': update.text}
+            user_id=user_id,
+            update_data={'signature_to_answer': new_signature}
         )
 
-        await self.bot.delete_message(chat_id=update.from_user.id, message_id=update.message_id)
+        await self.bot.delete_message(chat_id=user_id, message_id=update.message_id)
+
         data = await state.get_data()
-        await self.bot.delete_message(chat_id=update.from_user.id, message_id=data.get('last_handler_sent_message_id'))
-        button = await self.button_search_and_action_any_collections(user_id=update.from_user.id, action='get',
+        await self.bot.delete_message(chat_id=user_id, message_id=data.get('last_handler_sent_message_id'))
+
+        wait_msg = await self.bot.send_message(
+            chat_id=user_id, text=FACE_BOT + wait_msg_text)
+        await asyncio.sleep(1)
+        await self.bot.delete_message(chat_id=user_id, message_id=wait_msg.message_id)
+
+        button = await self.button_search_and_action_any_collections(user_id=user_id, action='get',
                                                                      button_name=self.parent_name)
         if button:
             reply_text, next_state = await button._set_answer_logic(update, state)
@@ -405,28 +427,33 @@ class MessageEnterSignatureForSignatureToTheAnswerButton(BaseMessage):
 
 class SignatureToTheAnswer(BaseButton, Utils):
     def _set_name(self) -> str:
-        return '✒ Управление подписями к ответу'
+        return '🪶 \t Управление подписями к ответу'  # 🪶 ✒ 🖋 📝
 
     def _set_reply_text(self) -> str:
-        return FACE_BOT + '<b>Введите новую подпись пожалуйста:</b>'
+        return FACE_BOT + '<b>Введите новую подпись{var}:</b>'
 
     def _set_next_state(self) -> str:
         return FSMPersonalCabinetStates.enter_signature
+
+    def _set_children(self) -> list:
+        return [GoToBack(new=False)]
 
     def _set_messages(self) -> dict:
         messages = [MessageEnterSignatureForSignatureToTheAnswerButton(self.button_id, parent_name=self.class_name)]
         return {message.state_or_key: message for message in messages}
 
     async def _set_answer_logic(self, update, state: FSMContext):
-        signature = self.default_bad_text
+        signature = None
 
         if wb_user := self.dbase.wb_user_get_or_none(user_id=update.from_user.id):
             signature = wb_user.signature_to_answer
 
-        reply_text, next_state = f"<b>Ваша подпись:</b>\n\n{signature}\n\n" + self.reply_text, self.next_state
-        # result = await self.get_access_to_wb_api(update=update, state=state)
-        # if isinstance(result, tuple):
-        #     reply_text, next_state = result
+        if signature:
+            reply_text, next_state = f"<b>Ваша подпись:</b>\n\n{signature}\n\n" + \
+                                     self.reply_text.format(var='или "del" для удаления'), self.next_state
+        else:
+            reply_text, next_state = f"<b>Подпись не установлена</b>\n\n" + \
+                                     self.reply_text.format(var=''), self.next_state
 
         return reply_text, next_state
 

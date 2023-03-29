@@ -20,6 +20,7 @@ class AccessControlMiddleware(BaseMiddleware):
     @utils.exception_control.exception_handler_wrapper
     async def on_pre_process_update(self, update: Update, update_data: Dict) -> None:
         update = update.message if update.message else update.callback_query
+        # print(update)
         # print(update.message.reply_markup.values.get('inline_keyboard')[0][0].text[-7:])
         # print(Base.general_collection)
 
@@ -78,10 +79,26 @@ class AccessControlMiddleware(BaseMiddleware):
     @utils.exception_control.exception_handler_wrapper
     async def on_post_process_callback_query(self, call: CallbackQuery, post: list, callback_data: Dict) -> None:
         data = callback_data.get('state')
-        if not call.data in ['GenerateNewResponseToFeedback', 'DontReplyFeedback']:
+        # prev_button_name = await Base.button_search_and_action_any_collections(
+        #     user_id=call.from_user.id, action='get', button_name='previous_button', updates_data=True)
+
+        # print('call.data:', call.data)
+        # print('prev_button_name', prev_button_name)
+
+        if not call.data in ['GenerateNewResponseToFeedback', 'DontReplyFeedback', 'UpdateListFeedbacks']:#, 'GoToBack']:
+            # and not (call.data.startswith('Feedback') and prev_button_name == 'AnswerManagement'):
+            # prev_button_name = await Base.button_search_and_action_any_collections(
+            #     user_id=call.from_user.id, action='get', button_name='previous_button', updates_data=True)
+            # print('prev_button_name', prev_button_name)
+
             await data.update_data(previous_button=call.data)
             await Base.button_search_and_action_any_collections(
                 user_id=call.from_user.id, action='add',
                 button_name='previous_button', instance_button=call.data, updates_data=True)
+
+            # if prev_button_name and not prev_button_name.startswith('Feedback'):
+            #     await Base.button_search_and_action_any_collections(
+            #         user_id=call.from_user.id, action='add',
+            #         button_name='prev2button', instance_button=prev_button_name, updates_data=True)
 
 

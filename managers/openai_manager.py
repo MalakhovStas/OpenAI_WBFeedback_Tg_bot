@@ -1,24 +1,18 @@
 import asyncio
-from asyncio.exceptions import TimeoutError
+# from asyncio.exceptions import TimeoutError
 
 import openai
 from typing import Sequence
 # from utils.admins_send_message import func_admins_message
 
-from config import OpenAI_TOKEN, OpenAI_TIMEOUT, SUPPORT, OpenAI_ORGANIZATION
+from config import OpenAI_TOKEN, OpenAI_TIMEOUT, OpenAI_ORGANIZATION, DEFAULT_FEED_ANSWER
 
 
 class OpenAIManager:
     """ Класс Singleton для работы с API ChatGPT """
     __instance = None
-    # __default_bad_answer = 'При генерации ответа произошла ошибка <b>{exc}</b>, попробуйте сгенерировать ' \
-    #                        f'новый ответ, или обратитесь в поддержку: {SUPPORT}'
 
-    # __default_bad_answer = 'При генерации ответа произошла ошибка, попробуйте сгенерировать ' \
-    #                        f'новый ответ, или обратитесь в поддержку:' + \
-    #                        f'@{SUPPORT.lstrip("https://t.me/")}'
-
-    __default_bad_answer = 'При генерации ответа произошла ошибка {exc}, попробуйте сгенерировать новый ответ'
+    __default_bad_answer = DEFAULT_FEED_ANSWER
 
     def __new__(cls, *args, **kwargs):
         if cls.__instance is None:
@@ -52,15 +46,14 @@ class OpenAIManager:
             if response and isinstance(response.get('choices'), Sequence):
                 answer = response['choices'][0]['text'].strip('\n')
             else:
-                answer = self.__default_bad_answer.format(exc='')
+                answer = self.__default_bad_answer
 
         except Exception as exception:
             # TODO Разобраться с циркулярным импортом
             # await func_admins_message(exc=exception)
             self.logger.warning(self.sign + f"{exception=}")
             # TODO Убрать сообщение об исключении пользователю
-            answer = self.__default_bad_answer.format(exc=exception.__class__.__name__)
-            # answer = self.__default_bad_answer
+            answer = self.__default_bad_answer
 
         text = answer.replace('\n', '')
         self.logger.info(self.sign + f"answer: {text[:100]}...")
@@ -96,6 +89,16 @@ class OpenAIManager:
     async def some_question(self, prompt: str) -> str:
         if await self._check_type_str(prompt):
             return await self.answer(prompt)
+
+    async def automatic_generate_answer_for_many_feeds(self, feedbacks: dict) -> dict:
+        data = [self.reply_feedback(feedback=feed_data.get('text'), feed_name=feed_name)
+                for feed_name, feed_data in feedbacks.items()]
+
+        list_result = await asyncio.gather(*data)
+        await asyncio.sleep(0.1)
+        [feedbacks.get(feed_name).update({'answer': answer}) for feed_name, answer in list_result]
+
+        return feedbacks
 
 
 # Так выглядит ответ

@@ -18,7 +18,7 @@ async def delete_message(chat_id, message_id):
 
 @dp.message_handler(state='*')
 @exception_handler_wrapper
-async def message_any_message(message: Message, state: FSMContext) -> None:
+async def get_message_handler(message: Message, state: FSMContext) -> None:
     """ Обработчик сообщений """
     text, keyboard, next_state = await alm.get_reply(update=message, state=state)
     disable_w_p_p = False if text in [ADVERT_BID_BOT, BOT_POS, SCHOOL] else True
@@ -49,7 +49,7 @@ async def message_any_message(message: Message, state: FSMContext) -> None:
 
 @dp.callback_query_handler(lambda callback: callback.data, state='*')
 @exception_handler_wrapper
-async def get_call(call: CallbackQuery, state: FSMContext) -> None:
+async def get_call_handler(call: CallbackQuery, state: FSMContext) -> None:
     """ Обработчик обратного вызова """
     text, keyboard, next_state = await alm.get_reply(update=call, state=state)
 

@@ -1,14 +1,13 @@
-import asyncio
 import json
-# import time
 from dataclasses import dataclass
-import aiohttp
-from aiogram.types import Message, CallbackQuery
-# from loguru import logger
-from utils import misc_utils
-from config import NUM_FEED_BUTTONS
+from datetime import datetime
 
-# https://cutycapt.sourceforge.net/ - снимок сайта jpg, svg, pdf и пр
+from aiogram.types import Message, CallbackQuery
+
+from config import NUM_FEED_BUTTONS, MODE_GENERATE_ANSWER, WB_TAKE
+from utils import misc_utils
+
+
 @dataclass
 class WBParseData:
     get_supplier_data: str = 'https://www.wildberries.ru/webapi/seller/data/short/{supplier}'
@@ -22,64 +21,79 @@ class WBParsingManager:
 
     __instance = None
     m_utils = misc_utils
-    # wb_data = WBParseData
-    # logger = logger
-    # sign = 'Подпись класса: '
 
     def __new__(cls, *args, **kwargs):
         if cls.__instance is None:
             cls.__instance = super().__new__(cls)
         return cls.__instance
 
-    async def __call__(self, supplier_id: str | int, update: CallbackQuery | Message) -> tuple:
+    async def __call__(self, supplier_id: str | int, update: CallbackQuery | Message | None = None,
+                       user_id: str | None = None, waiting_msgs: bool = True,
+                       only_date: str | None = None) -> tuple[dict, int]:
+
+        user_id = user_id if user_id else update.from_user.id
         if isinstance(supplier_id, str) and supplier_id.startswith('SupplierParsing'):
             supplier_id = supplier_id.lstrip('SupplierParsing')
 
-        await self.parse_get_supplier(supplier_id, update=update)
+        supplier = await self.parse_get_supplier(supplier_id, update=update, user_id=user_id)
+        supplier_name = list(supplier.values())[0].get("button_name") \
+            if supplier and isinstance(supplier, dict) else 'Нет данных'
+
+        wait_msg = await self.bot.send_message(
+            chat_id=user_id,
+            text=f'🌐 Загружаю отзывы  магазина:'
+                 f'\n<b>{supplier_name}</b>\nнемного подождите пожалуйста...'
+        ) if waiting_msgs else None
+
         products_root_id = await self.parse_get_supplier_products(supplier_id)
-        result_feedbacks, supplier_total_feeds = await self.parse_get_feedbacks_list(
-            products_root_id=products_root_id, supplier_id=supplier_id, update=update)
+        result_feedbacks, supplier_total_feeds = await self.parse_get_feedbacks_list(products_root_id=products_root_id,
+                                                                                     supplier_id=supplier_id,
+                                                                                     update=update, user_id=user_id,
+                                                                                     only_date=only_date)
+
+        if wait_msg:
+            await self.bot.delete_message(chat_id=user_id, message_id=wait_msg.message_id)
         return result_feedbacks, supplier_total_feeds
 
-    def __init__(self, dbase, rm, ai, logger):
+    def __init__(self, dbase, bot, rm, ai, logger):
         self.wb_data = WBParseData
-        self.requests_manager = rm
         self.dbase = dbase
+        self.bot = bot
+        self.requests_manager = rm
         self.ai = ai
         self.logger = logger
         self.sign = self.__class__.__name__ + ': '
 
-    async def parse_get_supplier(self, supplier_id: str | int,
-                                 update: Message | CallbackQuery | None = None, user_id: int | None = None):
+    async def parse_get_supplier(self, supplier_id: str | int, update: Message | CallbackQuery | None = None,
+                                 user_id: int | None = None) -> dict[str, dict] | None:
         exc = None
         supplier = None
         user_id = user_id if user_id else update.from_user.id
 
-        # response = await request(self.wb_data.get_supplier_data.format(supplier=supplier_id))
         response = await self.requests_manager(url=self.wb_data.get_supplier_data.format(supplier=supplier_id))
 
-        self.logger.debug(self.sign + f'parse_get_supplier -> response: {response}')
+        self.logger.debug(self.sign + f'-> {response=}')
 
         if response and isinstance(response, dict) and response.get('id'):
             try:
                 supplier = {f"SupplierParsing{response['id']}":
-                                    {'button_name': response['fineName'] if response['fineName'] else response['name'],
-                                     'mode': 'PARSING',  # Режим работы с магазином API или PARSING
-                                     'id': response['id'],  # "727553e6-1c20-45af-8f93-031dac28cb1e"
-                                     'oldID': response['id'],  # 252218 нужно при парсинге
-                                     'name': response['name'],  # "ИП Андреева Т. Ф."
-                                     'general': response['fineName'],  # "Андреева Т. Ф."
-                                     'fullName': response['fineName']  # "Андреева Т. Ф."
-                                     }
+                                {'button_name': response['fineName'] if response['fineName'] else response['name'],
+                                 'mode': 'PARSING',  # Режим работы с магазином API или PARSING
+                                 'id': response['id'],  # "727553e6-1c20-45af-8f93-031dac28cb1e"
+                                 'oldID': response['id'],  # 252218 нужно при парсинге
+                                 'name': response['name'],  # "ИП Андреева Т. Ф."
+                                 'general': response['fineName'],  # "Андреева Т. Ф."
+                                 'fullName': response['fineName']  # "Андреева Т. Ф."
+                                 }
                             }
             except KeyError as exc:
                 pass
+
             else:
                 self.dbase.save_suppliers(supplier, user_id=user_id)
-                pass
 
         if not supplier:
-            self.logger.warning(self.sign + f'ERROR parse_get_supplier, {response=} | {exc=}')
+            self.logger.warning(self.sign + f'ERROR {response=} | {exc=}')
 
         return supplier
 
@@ -89,8 +103,10 @@ class WBParsingManager:
 
         response = await self.requests_manager(self.wb_data.get_items_from_supplier_id.format(supplier=supplier_id))
         try:
-
-            data = json.loads(response.get('response'))
+            if not response.get('response'):
+                data = response
+            else:
+                data = json.loads(response.get('response'))
 
             for product in data.get('data')['products']:
                 products_root_id.update({product.get('root'): product.get('name')})
@@ -99,94 +115,80 @@ class WBParsingManager:
             pass
 
         else:
-            self.logger.debug(self.sign + f'parse_get_supplier_products -> num products: {len(products_root_id)}')
+            self.logger.debug(self.sign + f'{len(products_root_id)=}')
 
         if not products_root_id:
-            self.logger.warning(self.sign + f'ERROR parse_get_supplier_products, {response=} | {exc=}')
+            self.logger.warning(self.sign + f'ERROR {response=} | {exc=}')
 
         return products_root_id
 
     async def parse_get_feedbacks_list(self, products_root_id: dict, supplier_id,
-                                       update: Message | CallbackQuery | None = None, user_id: int | None = None):
+                                       update: Message | CallbackQuery | None = None,
+                                       user_id: int | None = None, only_date: str | None = None) -> tuple[dict, int]:
 
-        res_products_root_id = await self.m_utils.random_choice_dict_elements(is_dict=products_root_id, num_elements=5)
-        only_year = '2023'
-        # total_feedbacks = 0
-        result_feedbacks = dict()
+        # res_products_root_id = await self.m_utils.random_choice_dict_elements(is_dict=products_root_id, num_elements=5)
+        res_products_root_id = products_root_id
+        total_good_steps = 0
+        only_date = str(datetime.now().year) if not only_date else str(only_date)
+        result_feeds = dict()
         supplier_name = f'SupplierParsing{supplier_id}'
         user_id = user_id if user_id else update.from_user.id
 
         wb_user = self.dbase.wb_user_get_or_none(user_id=user_id)
-        ignored_feeds = {feed_name: feed_value for feed_name, feed_value in wb_user.ignored_feedbacks.items() if feed_name == supplier_name}
-        unanswered_feeds = {feed_name: feed_value for feed_name, feed_value in wb_user.unanswered_feedbacks.items() if feed_name == supplier_name}
+        ignored_feeds = wb_user.ignored_feedbacks
+        unanswered_feeds = wb_user.unanswered_feedbacks
         total_feeds_in_db = ignored_feeds | unanswered_feeds
 
-        self.logger.debug(f'{len(ignored_feeds.keys())=} | {len(unanswered_feeds.keys())=} '
-                          f'| {len(total_feeds_in_db)=}')
+        self.logger.debug(f'{len(total_feeds_in_db)=} | {len(unanswered_feeds.keys())=} | {len(ignored_feeds.keys())=}')
 
         for item_root_id, product_name in res_products_root_id.items():
-            # item_root_id = next(iter(item))
-            # product_name = item[item_root_id]
-            # print(item_root_id, product_name)
-
+            if total_good_steps >= WB_TAKE: break
             response = await self.requests_manager(
                 self.wb_data.get_feedbacks1_from_items.format(item_root_id=item_root_id))
+
             feedbacks = response.get('feedbacks')
-            # print('feedbacks1', True if feedbacks else False)
+
             if not feedbacks:
                 response = await self.requests_manager(
                     self.wb_data.get_feedbacks2_from_items.format(item_root_id=item_root_id))
+
                 feedbacks = response.get('feedbacks', list())
-                # print('feedbacks2', True if feedbacks else False)
 
-            self.logger.debug(self.sign + f'func: get_feedback_list -> {product_name=} | {len(feedbacks)=}')
+            self.logger.debug(self.sign + f' -> {product_name=} | {len(feedbacks)=}')
 
-            allowed_steps = NUM_FEED_BUTTONS // len(res_products_root_id)
-            step = 0
-            for feedback in feedbacks:
-                if not feedback.get('answer') and feedback.get('createdDate').startswith(only_year):
-                    step += 1
-                    if step > allowed_steps:
+            for step, feedback in enumerate(feedbacks, 1):
+                feedback_id = feedback.get('id')
+                feed_answer = feedback.get('answer')
+                if not feed_answer and not f"FeedbackParsing{feedback_id}" in total_feeds_in_db.keys() \
+                        and feedback.get('createdDate').startswith(only_date):
+
+                    if MODE_GENERATE_ANSWER == 'automatic' and step > NUM_FEED_BUTTONS // len(res_products_root_id):
                         break
-                    # total_feedbacks += 1
-                    # print(feedback.get('answer'), type(feedback.get('answer')))
-                    # print(feedback)
-                    result_feedbacks.update({f"FeedbackParsing{feedback.get('id')}": {
+                    else:
+                        if total_good_steps >= WB_TAKE: break
+                        total_good_steps += 1
+
+                    result_feeds.update({f"FeedbackParsing{feedback_id}": {
                         'supplier': supplier_name,
                         'button_name': f"[ {feedback.get('productValuation')} ]  {feedback.get('text')[:100]}",
                         'text': feedback.get('text'),
-                        'answer': feedback.get('answer'),
+                        'answer': feed_answer,
                         'productValuation': feedback.get('productValuation'),
                         'productName': product_name,
                         'createdDate': feedback.get('createdDate')}})
 
-        data = [self.ai.reply_feedback(feedback=feed_data.get('text'), feed_name=feed_name)
-                for feed_name, feed_data in result_feedbacks.items()]
+        if MODE_GENERATE_ANSWER == 'automatic':
+            result_feeds = await self.ai.automatic_generate_answer_for_many_feeds(feedbacks=result_feeds)
+        else:
+            result_feeds = await self.m_utils.set_hint_in_answer_for_many_feeds(feedbacks=result_feeds)
 
-        list_result = await asyncio.gather(*data)
-        await asyncio.sleep(0.1)
-        [result_feedbacks.get(feed_name).update({'answer': answer}) for feed_name, answer in list_result]
-
-        self.logger.debug(self.sign + f'func: parse_get_feedbacks_list  | {len(result_feedbacks)=} | {supplier_name=}')
-        self.dbase.save_unanswered_feedbacks(unanswered_feedbacks=result_feedbacks, user_id=user_id)
+        self.dbase.save_unanswered_feedbacks(unanswered_feedbacks=result_feeds, user_id=user_id)
 
         supplier_total_feeds = len([feed for feed in total_feeds_in_db.values()
-                                    if feed.get('supplier') == supplier_name]) + len(result_feedbacks)
+                                    if feed.get('supplier') == supplier_name]) + len(result_feeds)
 
-        # print('supplier_name ->', supplier_name, '-> total_feeds', total_feeds)
-        return result_feedbacks, supplier_total_feeds
-
-        # data = [self.ai.reply_many_feedbacks(feed_name=feed_name, feedback=feed_data.get('text'))
-        #         for feed_name, feed_data in result_feedbacks.items()]
-
-        # list_result = await asyncio.gather(*data)
-        # await asyncio.sleep(0.1)
-        # [result_feedbacks.get(feed_name).update({'answer': answer}) for feed_name, answer in list_result]
-
-        # print(f'total_feedbacks:{total_feedbacks}')
-        # print(json.dumps(result_feedbacks, indent=4, ensure_ascii=False))
-
-        # return result_feedbacks
+        self.logger.debug(self.sign + f'{len(result_feeds)=} | {supplier_name=}')
+        return result_feeds, supplier_total_feeds
 
 
 if __name__ == '__main__':
@@ -196,21 +198,6 @@ if __name__ == '__main__':
     # # suppl = 258729
     # suppl = 252218
     # asyncio.run(inst(suppl))
-    #
-    # cookie: dict = {'Cookie': 'route=1657467309.925.11285.956039|5b63cf1668f4c654e931e4058f25bb94; ' \
-    #                           '_wbauid=5190819891675850777; ' \
-    #                           '___wbu=cb9520aa-e6dc-44a8-8914-3c5fd41c0039.1675850777; ' \
-    #                           'BasketUID=dc5cc910-8939-451c-8cb4-e350233f6202; ' \
-    #                           '__wba_s=1; __wbl=cityId=0&regionId=0&city=Москва&phone=84957755505&latitude=55,755787&longitude=37,617634&src=1; ' \
-    #                           '__store=117673_122258_122259_125238_125239_125240_507_3158_117501_120602_120762_6158_121709_124731_130744_159402_2737_117986_1733_686_132043_161812_1193_206968_206348_205228_172430_117442_117866; ' \
-    #                           '__region=80_64_38_4_115_83_33_68_70_69_30_86_75_40_1_66_48_110_22_31_71_111; ' \
-    #                           '__pricemargin=1.0--; __cpns=12_3_18_15_21; __sppfix=4; ' \
-    #                           '__dst=-1029256_-102269_-2162196_-1257786; __catalogOptions=CardSize:C516x688&Sort:Popular; ' \
-    #                           'ncache=117673_122258_122259_125238_125239_125240_507_3158_117501_120602_120762_6158_121709_124731_130744_159402_2737_117986_1733_686_132043_161812_1193_206968_206348_205228_172430_117442_117866;' \
-    #                           '80_64_38_4_115_83_33_68_70_69_30_86_75_40_1_66_48_110_22_31_71_111;1.0--;12_3_18_15_21;4;CardSize:C516x688&Sort:Popular;-1029256_-102269_-2162196_-1257786; ' \
-    #                           '___wbs=a7fb4c26-464a-4d1d-934e-8dd5001e999e.1679390433; __tm=1679402357'}
-
-
 
     # wb: str = 'https://www.wildberries.ru'
     # wb_catalog: str = 'https://www.wildberries.ru/webapi/menu/main-menu-ru-ru.json'

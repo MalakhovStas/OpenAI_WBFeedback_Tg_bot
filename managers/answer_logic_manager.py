@@ -4,7 +4,7 @@ from aiogram.dispatcher import FSMContext
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 
 from buttons_and_messages.main_menu import MainMenu
-from config import ADVERT_BID_BOT, BOT_POS, SCHOOL
+from config import ADVERT_BID_BOT, BOT_POS, SCHOOL, DEFAULT_FEED_ANSWER
 
 
 class AnswerLogicManager:
@@ -39,25 +39,43 @@ class AnswerLogicManager:
         keyboard = InlineKeyboardMarkup()
         if buttons:
             for index, button in enumerate(buttons, 1):
+                button_name = button.name
                 if button.class_name == 'GoToBack':
                     main_menu = True
                     insert = True
+                    if parent_button.class_name.startswith('Feedback'):
+                        button_name = '◀ \t Список отзывов'
 
                 if len(buttons) == 1 or index < len(buttons):
                     if button.class_name == 'EditFeedback':
                         text = f'\n' + (parent_button.any_data.get('answer') if parent_button
                                         and parent_button.any_data else self.main.default_bad_text)
-                        keyboard.add(InlineKeyboardButton(text=button.name, switch_inline_query_current_chat=text))
+                        keyboard.add(InlineKeyboardButton(text=button_name, switch_inline_query_current_chat=text))
                     else:
                         keyboard.add(
-                            InlineKeyboardButton(text=button.name, callback_data=button.callback, url=button.url))
+                            InlineKeyboardButton(text=button_name, callback_data=button.callback, url=button.url))
                 else:
                     keyboard.insert(
-                        InlineKeyboardButton(text=button.name, callback_data=button.callback, url=button.url)) \
+                        InlineKeyboardButton(text=button_name, callback_data=button.callback, url=button.url)) \
                         if insert and not main_menu else keyboard.add(InlineKeyboardButton(
-                            text=button.name, callback_data=button.callback, url=button.url))
+                            text=button_name, callback_data=button.callback, url=button.url))
 
-        if any(button.class_name.startswith('Feedback') for button in buttons):
+        # print(buttons)
+        # print(parent_button)
+        # print([button for button in buttons if not button.class_name == 'GoToBack'])
+        # print([(button.class_name.startswith('Supplier') , button.children_buttons) for button in buttons
+        #        if not button.class_name in ['GoToBack', 'EnterSupplierID']])
+        # (len(buttons) == 1 and buttons[0].class_name == 'GoToBack'
+
+        """ Если есть хотя-бы одна кнопка-отзыв или нет ни одной кнопки кроме >назад< добавляем кнопку >обновить<"""
+        # print('parent_button.class_name', parent_button.class_name)
+        # and parent_button.class_name not in ['AnswerManagement', 'MainMenu'])
+
+        if any(button.class_name.startswith('Feedback') for button in buttons) or \
+                (not parent_button.class_name in ['EnterSupplierID', 'SignatureToTheAnswer',
+                                                  'MainMenu', 'SetUpNotificationTimes'] and
+                 not [button for button in buttons if not button.class_name == 'GoToBack']):
+
             keyboard.insert(InlineKeyboardButton(text='🌐 Обновить информацию', callback_data='UpdateListFeedbacks'))
 
         if main_menu:
@@ -68,7 +86,7 @@ class AnswerLogicManager:
 
     async def get_reply(self, update: Message | CallbackQuery | None = None, state: FSMContext | None = None,
                         button: Any | None = None, message: Any | None = None, insert: bool = False,
-                        main_menu: bool = True) -> tuple[str | None, InlineKeyboardMarkup | None, str | None]:
+                        main_menu: bool = True, not_keyboard: bool = False) -> tuple[str | None, InlineKeyboardMarkup | None, str | None]:
 
         buttons = None
         current_data = {}
@@ -136,7 +154,13 @@ class AnswerLogicManager:
 
         else:
             if hasattr(button, 'children_buttons'):
-                buttons = button.children_buttons
+                # buttons = button.children_buttons
+                if button.class_name.startswith('Feedback') \
+                        and not button.class_name.startswith('FeedbackParsing') \
+                        and button.any_data.get('answer') == DEFAULT_FEED_ANSWER:
+                    buttons = button.children_buttons[1:]
+                else:
+                    buttons = button.children_buttons
 
             if hasattr(button.__class__, '_set_answer_logic'):
                 reply_text, next_state = await button._set_answer_logic(update, state)
@@ -147,14 +171,23 @@ class AnswerLogicManager:
             else:
                 reply_text, next_state = button.reply_text, button.next_state
 
-        if button and button.class_name.startswith('Feedback'):
+        if button and hasattr(button, 'class_name') and \
+                (button.class_name.startswith('Feedback') or button.class_name in
+                 ['EnterSupplierID', 'SignatureToTheAnswer', 'AnswerManagement']):
             parent_button = button
 
         elif button and button.class_name.startswith('Supplier'):
+            if button.any_data.get('mode') == 'API':
+                pb_name = 'SelectAPIMode'
+            elif button.any_data.get('mode') == 'PARSING':
+                pb_name = 'SelectSupplierIDMode'
+            else:
+                pb_name = 'WildberriesCabinet'
             parent_button = await self.main.button_search_and_action_any_collections(
-                user_id=update.from_user.id, action='get', button_name='WildberriesCabinet')
+                user_id=update.from_user.id, action='get', button_name=pb_name)
 
-        elif (button and button.class_name == 'GenerateNewResponseToFeedback') or \
+        elif (button and button.class_name in ['GenerateNewResponseToFeedback',
+                                               'DontReplyFeedback', 'UpdateListFeedbacks']) or \
                 (message and message.class_name == 'MessageEditFeedbackAnswer'):
             parent_button = await self.main.button_search_and_action_any_collections(
                 user_id=update.from_user.id, action='get', button_name=current_data.get('previous_button'))
@@ -162,7 +195,10 @@ class AnswerLogicManager:
         else:
             parent_button = button.parent_button if button else None
 
-        keyboard = await self.create_keyboard(
-            buttons=buttons, insert=insert, main_menu=main_menu, parent_button=parent_button)
+        if not_keyboard:
+            keyboard = None
+        else:
+            keyboard = await self.create_keyboard(
+                buttons=buttons, insert=insert, main_menu=main_menu, parent_button=parent_button)
 
         return reply_text, keyboard, next_state

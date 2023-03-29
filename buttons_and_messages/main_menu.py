@@ -1,13 +1,15 @@
 from buttons_and_messages.personal_cabinet import WildberriesCabinet, SetUpNotificationTimes, SignatureToTheAnswer
-from config import SUPPORT, FACE_BOT
+from config import SUPPORT, FACE_BOT, NUM_FEED_BUTTONS
 from utils.states import FSMMainMenuStates, FSMPersonalCabinetStates
-from .base_classes import BaseButton, BaseMessage
+from .base_classes import BaseButton, BaseMessage, Utils
+from aiogram.types import CallbackQuery
+from aiogram.dispatcher import FSMContext
 
 
 class PersonalCabinet(BaseButton):
 
     def _set_name(self) -> str:
-        return '⚙ Личный кабинет'
+        return '⚙ \t Личный кабинет'
 
     def _set_reply_text(self) -> str:
         return FACE_BOT + '<b>Выберите пункт меню:</b>'
@@ -16,16 +18,16 @@ class PersonalCabinet(BaseButton):
         return FSMPersonalCabinetStates.personal_cabinet
 
     def _set_children(self) -> list:
-        return [WildberriesCabinet(parent_name=self.__class__.__name__),
-                SetUpNotificationTimes(parent_name=self.__class__.__name__),
-                SignatureToTheAnswer(parent_name=self.__class__.__name__)]
+        return [WildberriesCabinet(parent_name=self.class_name, parent_button=self),
+                SetUpNotificationTimes(parent_name=self.class_name, parent_button=self),
+                SignatureToTheAnswer(parent_name=self.class_name, parent_button=self)]
 
 
-class AnswerManagement(BaseButton):
+class AnswerManagement(BaseButton, Utils):
     wb_cabinet = WildberriesCabinet(new=False)
 
     def _set_name(self) -> str:
-        return '📝 Посмотреть неотвеченные отзывы'
+        return '📝 \t Неотвеченные отзывы по магазинам'
 
     def _set_next_state(self) -> str | None:
         return self.wb_cabinet.next_state
@@ -35,6 +37,36 @@ class AnswerManagement(BaseButton):
 
     def _set_children(self) -> list:
         return [button for button in self.wb_cabinet.children_buttons if button.class_name != 'GoToBack']
+
+    # def _set_reply_text(self) -> str:
+    #     return FACE_BOT + '<b>Выберите отзыв:</b>'
+
+    # async def _set_answer_logic(self, update: CallbackQuery, state: FSMContext):
+    #     reply_text, next_state = self.reply_text, self.next_state
+    #     user_id = update.from_user.id
+
+        # wb_user = self.dbase.wb_user_get_or_none(user_id=user_id)
+        # feedbacks = dict(list(wb_user.unanswered_feedbacks.items())[:NUM_FEED_BUTTONS])
+        # buttons = await self.utils_get_or_create_buttons(collection=feedbacks,
+        #                                                  class_type='feedback',
+        #                                                  update=update,
+        #                                                  user_id=user_id)
+        # print(buttons)
+        # self.children_buttons = buttons[:-1]
+        # result = await self.get_access_to_wb_api(update=update, state=state)
+        # if isinstance(result, tuple):
+        #     reply_text, next_state = result
+        # else:
+        #
+        #     if suppliers_buttons := await self.api_suppliers_buttons_logic(update=update, state=state, user_id=user_id):
+        #         self.children_buttons = suppliers_buttons
+        #
+        #         # [*suppliers_buttons, back_button]
+        #         back_button = GoToBack(new=False)
+        #         if not back_button in self.children_buttons:
+        #             self.children_buttons.append(back_button)
+
+        # return reply_text, next_state
 
 
 class MessageOnceForCreateResponseManuallyButton(BaseMessage):
@@ -60,7 +92,7 @@ class MessageOnceForCreateResponseManuallyButton(BaseMessage):
 class CreateResponseManually(BaseButton):
 
     def _set_name(self) -> str:
-        return '✍ Сгенерировать текст по ключевикам'
+        return '✍ \t Сгенерировать текст по ключевикам'
 
     def _set_reply_text(self) -> str:
         return FACE_BOT + 'Введите название товара и текст отзыва, я сгенерирую ответ' \
@@ -78,10 +110,10 @@ class CreateResponseManually(BaseButton):
 class AboutBot(BaseButton):
 
     def _set_name(self) -> str:
-        return 'ℹ О боте'
+        return 'ℹ \t О боте'
 
     def _set_reply_text(self) -> str:
-        return f"{FACE_BOT} Приветствую ✌️" \
+        return f"{FACE_BOT} Приветствую \t ✌️" \
                "\nЯ бот который призван помогать продавцам писать ответы на отзывы и тексты для карточек товаров. " \
                "Работаю с использованием технологий искусственного интеллекта ChatGPT. Прошу отнестись с пониманием " \
                "- я полностью бесплатный. Поэтому я иногда буду высылать анонсы полезных вебинаров для продавцов " \
@@ -94,7 +126,7 @@ class AboutBot(BaseButton):
 class SupportButton(BaseButton):
 
     def _set_name(self) -> str:
-        return '🆘 Поддержка'
+        return '🆘 \t Поддержка'
 
     def _set_reply_text(self) -> str | None:
         return None
@@ -106,7 +138,7 @@ class SupportButton(BaseButton):
 class MainMenu(BaseButton):
 
     def _set_name(self) -> str:
-        return 'ℹ Главное меню'
+        return 'ℹ \t Главное меню'  # 📒
 
     def _set_reply_text(self) -> str:
         return FACE_BOT + '<b>Выберите один из пунктов главного меню:</b>'
@@ -115,8 +147,8 @@ class MainMenu(BaseButton):
         return 'reset_state'
 
     def _set_children(self) -> list:
-        return [PersonalCabinet(parent_name=self.class_name),
-                AnswerManagement(parent_name=self.class_name),
-                CreateResponseManually(parent_name=self.class_name),
-                AboutBot(parent_name=self.class_name),
-                SupportButton(parent_name=self.class_name)]
+        return [PersonalCabinet(parent_name=self.class_name, parent_button=self),
+                AnswerManagement(parent_name=self.class_name, parent_button=self),
+                CreateResponseManually(parent_name=self.class_name, parent_button=self),
+                AboutBot(parent_name=self.class_name, parent_button=self),
+                SupportButton(parent_name=self.class_name, parent_button=self)]
