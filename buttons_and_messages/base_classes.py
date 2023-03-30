@@ -637,6 +637,7 @@ class GenerateNewResponseToFeedback(BaseButton):
                 wait_msg = await self.bot.send_message(chat_id=user_id, text=self.default_generate_answer)
 
                 ai_answer = await self.ai.reply_feedback(feed_button.any_data.get('text'))
+                # ai_answer = await self.ai.some_question(feed_button.any_data.get('text'))
 
                 await self.update_feed_answer(user_id=user_id, button=feed_button, new_answer=ai_answer)
 

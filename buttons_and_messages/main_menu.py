@@ -1,5 +1,5 @@
 from buttons_and_messages.personal_cabinet import WildberriesCabinet, SetUpNotificationTimes, SignatureToTheAnswer
-from config import SUPPORT, FACE_BOT, NUM_FEED_BUTTONS
+from config import SUPPORT, FACE_BOT, NUM_FEED_BUTTONS, DEFAULT_FEED_ANSWER
 from utils.states import FSMMainMenuStates, FSMPersonalCabinetStates
 from .base_classes import BaseButton, BaseMessage, Utils
 from aiogram.types import CallbackQuery
@@ -80,13 +80,19 @@ class MessageOnceForCreateResponseManuallyButton(BaseMessage):
     def _set_next_state(self) -> str:
         return 'reset_state'
 
-    async def _set_answer_logic(self, update, state) -> tuple[str | None, str | None]:
+    async def _set_answer_logic(self, update, state) -> tuple[str | tuple, str | None]:
+        reply_text = 'Я сгенерировал текст:\n\n'
         wait_msg = await self.bot.send_message(chat_id=update.from_user.id,
                                                text=self.default_generate_answer)
-        reply_text = 'Я сгенерировал ответ на отзыв:\n\n' + await self.ai.reply_feedback(feedback=update.text)
+
+        ai_answer = await self.ai.some_question(prompt=update.text.strip())
+
+        reply_text = reply_text + ai_answer + ':ai:some_question' \
+            if ai_answer != DEFAULT_FEED_ANSWER else self.reply_text
+
         await self.bot.delete_message(chat_id=update.from_user.id, message_id=wait_msg.message_id)
 
-        return reply_text if reply_text else self.reply_text, self.next_state
+        return reply_text, self.next_state
 
 
 class CreateResponseManually(BaseButton):
@@ -95,7 +101,7 @@ class CreateResponseManually(BaseButton):
         return '✍ \t Сгенерировать текст по ключевикам'
 
     def _set_reply_text(self) -> str:
-        return FACE_BOT + 'Введите название товара и текст отзыва, я сгенерирую ответ' \
+        return FACE_BOT + 'О чём мне написать текст?' \
                           '\n\n<b>Пример:</b> Чехол на iPhone 11. Очень понравился чехол. ' \
                           'Мягкий, плотно сидит и хорошо защищает камеру.'
 

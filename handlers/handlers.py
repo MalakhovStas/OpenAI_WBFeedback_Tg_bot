@@ -1,5 +1,5 @@
 from aiogram.dispatcher import FSMContext
-from aiogram.types import CallbackQuery, Message
+from aiogram.types import CallbackQuery, Message, ParseMode
 from aiogram.utils.exceptions import MessageToDeleteNotFound
 from utils.exception_control import exception_handler_wrapper
 from config import BOT_POS, ADVERT_BID_BOT, SCHOOL
@@ -20,11 +20,16 @@ async def delete_message(chat_id, message_id):
 @exception_handler_wrapper
 async def get_message_handler(message: Message, state: FSMContext) -> None:
     """ Обработчик сообщений """
-    text, keyboard, next_state = await alm.get_reply(update=message, state=state)
-    disable_w_p_p = False if text in [ADVERT_BID_BOT, BOT_POS, SCHOOL] else True
+    parse_mode = ParseMode.HTML
+    reply_text, keyboard, next_state = await alm.get_reply(update=message, state=state)
+    disable_w_p_p = False if reply_text in [ADVERT_BID_BOT, BOT_POS, SCHOOL] else True
 
-    sent_message = await bot.send_message(
-        chat_id=message.from_user.id, text=text, reply_markup=keyboard, disable_web_page_preview=disable_w_p_p)
+    if reply_text.strip().endswith(':ai:some_question'):
+        reply_text = reply_text.rstrip(':ai:some_question')
+        parse_mode = None
+
+    sent_message = await bot.send_message(chat_id=message.from_user.id, text=reply_text, reply_markup=keyboard,
+                                          disable_web_page_preview=disable_w_p_p, parse_mode=parse_mode)
 
     await state.update_data(last_handler_sent_message_id=sent_message.message_id,
                             last_handler_sent_from_message_message_id=sent_message.message_id)
@@ -51,12 +56,12 @@ async def get_message_handler(message: Message, state: FSMContext) -> None:
 @exception_handler_wrapper
 async def get_call_handler(call: CallbackQuery, state: FSMContext) -> None:
     """ Обработчик обратного вызова """
-    text, keyboard, next_state = await alm.get_reply(update=call, state=state)
+    reply_text, keyboard, next_state = await alm.get_reply(update=call, state=state)
 
     await delete_message(chat_id=call.from_user.id, message_id=call.message.message_id)
 
-    sent_message = await bot.send_message(
-        chat_id=call.from_user.id, text=text, reply_markup=keyboard, disable_web_page_preview=True)
+    sent_message = await bot.send_message(chat_id=call.from_user.id, text=reply_text, reply_markup=keyboard,
+                                          disable_web_page_preview=True)
 
     await state.update_data(last_handler_sent_message_id=sent_message.message_id,
                             last_handler_sent_from_call_message_id=sent_message.message_id)
