@@ -32,7 +32,7 @@ class OpenAIManager:
         return f'{INVITATION} {text}'
 
     async def answer(self, prompt: str, correct: bool = True) -> str:
-        """ Запрос к ChatGPT"""
+        """ Запрос к ChatGPT модель: text-davinci-003 """
         prompt = await self.prompt_correct(text=prompt) if correct else prompt
         self.logger.info(self.sign + f"question: {prompt[:100]}...")
         try:
@@ -55,9 +55,35 @@ class OpenAIManager:
 
         except Exception as exception:
             # TODO Разобраться с циркулярным импортом
-            # await func_admins_message(exc=exception)
+            # await func_admins_message(exc=f'{self.sign} {exception=}')
             self.logger.warning(self.sign + f"{exception=}")
             # TODO Убрать сообщение об исключении пользователю
+            answer = self.__default_bad_answer
+
+        text = answer.replace('\n', '')
+        self.logger.info(self.sign + f"answer: {text[:100]}...")
+        return answer
+
+    async def answer_gpt_3_5_turbo(self, prompt: str, correct: bool = True) -> str:
+        """ Запрос к ChatGPT модель: gpt-3.5-turbo"""
+        prompt = await self.prompt_correct(text=prompt) if correct else prompt
+        self.logger.info(self.sign + f"question: {prompt[:100]}...")
+        try:
+            response = await asyncio.wait_for(self.openai.ChatCompletion.acreate(
+                model=MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                timeout=TIMEOUT
+            ), timeout=TIMEOUT + 3)
+            # print(response)
+            if response and isinstance(response.get('choices'), Sequence):
+                answer = response['choices'][0]['message']['content'].strip('\n')
+            else:
+                answer = self.__default_bad_answer
+
+        except Exception as exception:
+            # TODO Разобраться с циркулярным импортом
+            # await func_admins_message(exc=f'{self.sign} {exception=}')
+            self.logger.warning(self.sign + f"{exception=}")
             answer = self.__default_bad_answer
 
         text = answer.replace('\n', '')
@@ -84,7 +110,10 @@ class OpenAIManager:
     async def reply_feedback(self, feedback: str, feed_name: str | None = None) -> tuple | str:
         answer = None
         if await self._check_type_str(feedback):
-            answer = await self.answer(prompt=feedback)
+            if MODEL == 'gpt-3.5-turbo':
+                answer = await self.answer_gpt_3_5_turbo(prompt=feedback)
+            else:
+                answer = await self.answer(prompt=feedback)
 
         if feed_name:
             return feed_name, answer
@@ -93,7 +122,11 @@ class OpenAIManager:
 
     async def some_question(self, prompt: str) -> str:
         if await self._check_type_str(prompt):
-            return await self.answer(prompt=prompt, correct=False)
+            if MODEL == 'gpt-3.5-turbo':
+                answer = await self.answer_gpt_3_5_turbo(prompt=prompt, correct=False)
+            else:
+                answer = await self.answer(prompt=prompt, correct=False)
+            return answer
 
     async def automatic_generate_answer_for_many_feeds(self, feedbacks: dict) -> dict:
         data = [self.reply_feedback(feedback=feed_data.get('text'), feed_name=feed_name)
