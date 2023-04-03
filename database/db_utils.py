@@ -1,5 +1,3 @@
-import functools
-import json
 from datetime import datetime
 
 from peewee import *
@@ -8,7 +6,6 @@ from playhouse.sqlite_ext import JSONField, SqliteDatabase
 
 from config import DATABASE_CONFIG
 
-my_json_dumps = functools.partial(json.dumps, ensure_ascii=False)
 databases = {
     'sqlite': SqliteDatabase,
     'postgres': PostgresqlDatabase,
@@ -18,39 +15,7 @@ databases = {
 db: SqliteDatabase | PostgresqlDatabase | MySQLDatabase = databases[DATABASE_CONFIG[0]](**DATABASE_CONFIG[1])
 
 
-class Button(Model):
-    button_id = IntegerField(primary_key=True)
-    parent_id = IntegerField(null=True)
-    name = CharField(null=True)
-    callback = CharField(null=True)
-    reply_text = TextField(null=True)
-    url = CharField(max_length=511, null=True)
-    next_state = CharField(null=True)
-    children = JSONField(null=False, default=list())
-    messages = JSONField(null=False, default=list())
-
-    class Meta:
-        database = db
-        order_by = 'parent_id'
-        db_table = 'buttons'
-
-
-class Message(Model):
-    button_id = ForeignKeyField(Button, related_name='messages', to_field=Button.button_id,
-                                on_delete='CASCADE', on_update='CASCADE', null=True, unique=False)
-    state_or_key = CharField(null=True)
-    reply_text = TextField(null=True)
-    next_state = CharField(null=True)
-    children_buttons = JSONField(null=False, default=list())
-
-    class Meta:
-        database = db
-        order_by = 'button_id'
-        db_table = 'messages_button'
-
-
 class Users(Model):
-    """ Модель одноименной таблицы в базе данных """
     user_id = IntegerField(primary_key=True, unique=True)
     username = CharField(null=True)
     first_name = CharField(null=True)
@@ -105,11 +70,45 @@ class Wildberries(Model):
         db_table = 'wildberries'
 
 
+# class Button(Model):
+#     class_name = CharField(primary_key=True)
+#     user_id = ForeignKeyField(Users, related_name='buttons', to_field=Users.user_id,
+#                               on_delete='CASCADE', on_update='CASCADE', null=True, unique=False)
+#     parent_name = CharField(null=True)
+#     name = CharField(null=True)
+#     callback = CharField(null=True)
+#     reply_text = TextField(null=True)
+#     url = CharField(max_length=511, null=True)
+#     next_state = CharField(null=True)
+#     children = JSONField(null=False, default=list())
+#     messages = JSONField(null=False, default=list())
+#
+#     class Meta:
+#         database = db
+#         order_by = 'class_name'
+#         db_table = 'buttons'
+#
+#
+# class Message(Model):
+#     class_name = CharField(primary_key=True)
+#     parent_name = ForeignKeyField(Button, related_name='messages', to_field=Button.class_name,
+#                                   on_delete='CASCADE', on_update='CASCADE', null=True, unique=False)
+#     state_or_key = CharField(null=True)
+#     reply_text = TextField(null=True)
+#     next_state = CharField(null=True)
+#     children_buttons = JSONField(null=False, default=list())
+#
+#     class Meta:
+#         database = db
+#         order_by = 'class_name'
+#         db_table = 'messages'
+
+
 class Tables:
     users = Users
-    buttons = Button
-    messages = Message
     wildberries = Wildberries
+    # buttons = Button
+    # messages = Message
 
     @classmethod
     def all_tables(cls):

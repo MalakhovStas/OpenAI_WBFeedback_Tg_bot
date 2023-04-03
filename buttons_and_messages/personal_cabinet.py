@@ -29,7 +29,7 @@ class UpdateListFeedbacks(BaseButton, Utils):
         return '🌐 Обновить информацию'
 
     def _set_reply_text(self) -> str | None:
-        return FACE_BOT + '<b>Выберите отзыв:</b>'
+        return self.default_choice_feedback
 
     async def _set_answer_logic(self, update: CallbackQuery, state: FSMContext) -> tuple[str, str | None]:
         reply_text, next_state = self.reply_text, self.next_state
@@ -64,7 +64,7 @@ class UpdateListFeedbacks(BaseButton, Utils):
             else:
                 await self.wb_api.get_feedback_list(supplier=supplier_name_key, user_id=user_id)
 
-            wb_user = self.dbase.wb_user_get_or_none(user_id=user_id)
+            wb_user = await self.dbase.wb_user_get_or_none(user_id=user_id)
 
             await self.bot.delete_message(chat_id=user_id, message_id=msg.message_id)
 
@@ -116,7 +116,9 @@ class MessageAfterUserEntersSmsCode(BaseMessage, Utils):
         user_id = update.from_user.id
 
         if await self.get_access_to_wb_api(update=update, state=state, sms_code=update.text):
-            reply_text, next_state = self.parent_button.reply_text, self.next_state
+            # reply_text, next_state = self.parent_button.reply_text, self.next_state
+            button = await self.button_search_and_action_any_collections(action='get', button_name=self.parent_name)
+            reply_text, next_state = button.reply_text, self.next_state
             if suppliers_buttons := await self.api_suppliers_buttons_logic(update=update, state=state, user_id=user_id):
                 self.children_buttons = suppliers_buttons
 
@@ -134,8 +136,8 @@ class SelectAPIMode(BaseButton, Utils):
         return [GoToBack(new=False)]
 
     def _set_messages(self) -> dict:
-        messages = [MessageAfterUserEntersPhone(button=self, parent_name=self.class_name, parent_button=self),
-                    MessageAfterUserEntersSmsCode(button=self, parent_name=self.class_name, parent_button=self)]
+        messages = [MessageAfterUserEntersPhone(parent_name=self.class_name),
+                    MessageAfterUserEntersSmsCode(parent_name=self.class_name)]
         return {message.state_or_key: message for message in messages}
 
     async def _set_answer_logic(self, update: Message, state: FSMContext):
@@ -179,7 +181,7 @@ class MessageEnterSupplierIDMode(BaseMessage, Utils):
             #     text=self.default_download_information.format(about='Загружаю информацию о магазине')
             # )
 
-            wb_user = self.dbase.wb_user_get_or_none(user_id=user_id)
+            wb_user = await self.dbase.wb_user_get_or_none(user_id=user_id)
             if supplier_id in [str(val.get('oldID')) for key, val in wb_user.suppliers.items()]:
                 self.children_buttons = []
                 return FACE_BOT + f'<b>Этот магазин уже в списке ваших магазинов</b>', None
@@ -219,7 +221,7 @@ class EnterSupplierID(BaseButton):
         return FSMUtilsStates.enter_supplier_id_mode
 
     def _set_messages(self) -> dict:
-        message = MessageEnterSupplierIDMode(button=self)
+        message = MessageEnterSupplierIDMode(parent_name=self.class_name)
         return {message.state_or_key: message}
 
 
@@ -231,7 +233,7 @@ class SelectSupplierIDMode(BaseButton, Utils):
         return FACE_BOT + '<b>Выберите магазин:</b>'
 
     def _set_children(self) -> list:
-        return [EnterSupplierID(parent_name=self.class_name, parent_button=self), GoToBack(new=False)]
+        return [EnterSupplierID(parent_name=self.class_name), GoToBack(new=False)]
 
     async def _set_answer_logic(self, update, state):
         reply_text, next_state = FACE_BOT + ' <b>Магазинов пока нет, добавьте</b>', self.next_state
@@ -264,8 +266,8 @@ class WildberriesCabinet(BaseButton):
         return 'reset_state'
 
     def _set_children(self) -> list:
-        return [SelectAPIMode(parent_name=self.class_name, parent_button=self),
-                SelectSupplierIDMode(parent_name=self.class_name, parent_button=self),
+        return [SelectAPIMode(parent_name=self.class_name),
+                SelectSupplierIDMode(parent_name=self.class_name),
                 GoToBack(new=False)]
 
 
@@ -280,7 +282,7 @@ class AroundTheClock(BaseButton):
         return timezones + [GoToBack(new=False)]
 
     async def _set_answer_logic(self, update, state):
-        self.dbase.update_wb_user(
+        await self.dbase.update_wb_user(
             user_id=update.from_user.id,
             update_data={'notification_times': 'around_the_clock'}
         )
@@ -299,7 +301,7 @@ class DayFrom9To18Hours(BaseButton):
         return timezones + [GoToBack(new=False)]
 
     async def _set_answer_logic(self, update, state):
-        self.dbase.update_wb_user(
+        await self.dbase.update_wb_user(
             user_id=update.from_user.id,
             update_data={'notification_times': '9-18'}
         )
@@ -317,7 +319,7 @@ class FullDayFrom9To21Hours(BaseButton):
         return timezones + [GoToBack(new=False)]
 
     async def _set_answer_logic(self, update, state):
-        self.dbase.update_wb_user(
+        await self.dbase.update_wb_user(
             user_id=update.from_user.id,
             update_data={'notification_times': '9-21'}
         )
@@ -338,10 +340,8 @@ class MessageEnterYourselfSetUpNotificationTimes(BaseMessage):
         enter_data = update.text.replace(' ', '')
         period = enter_data.split('-')
         if len(period) == 2 and all([sym.isdigit() and int(sym) in range(25) for sym in period]):
-            # and period[0] > period[1]:
-
             self.children_buttons = self._set_children()
-            self.dbase.update_wb_user(
+            await self.dbase.update_wb_user(
                 user_id=update.from_user.id,
                 update_data={'notification_times': enter_data}
             )
@@ -369,7 +369,7 @@ class EnterYourself(BaseButton):
         return FSMPersonalCabinetStates.enter_yourself_set_up_notification_times
 
     def _set_messages(self) -> dict:
-        message = MessageEnterYourselfSetUpNotificationTimes(self.button_id)
+        message = MessageEnterYourselfSetUpNotificationTimes(parent_name=self.class_name)
         return {message.state_or_key: message}
 
 
@@ -381,10 +381,10 @@ class SetUpNotificationTimes(BaseButton):
         return FACE_BOT + '<b>Выберите удобное время уведомления:</b>'
 
     def _set_children(self) -> list:
-        return [AroundTheClock(parent_name=self.class_name, parent_button=self),
-                DayFrom9To18Hours(parent_name=self.class_name, parent_button=self),
-                FullDayFrom9To21Hours(parent_name=self.class_name, parent_button=self),
-                EnterYourself(parent_name=self.class_name, parent_button=self),
+        return [AroundTheClock(parent_name=self.class_name),
+                DayFrom9To18Hours(parent_name=self.class_name),
+                FullDayFrom9To21Hours(parent_name=self.class_name),
+                EnterYourself(parent_name=self.class_name),
                 GoToBack(new=False)
                 ]
 
@@ -411,7 +411,7 @@ class MessageEnterSignatureForSignatureToTheAnswerButton(BaseMessage):
             new_signature = update.text
             wait_msg_text = '<b>Новая подпись установлена</b>'
 
-        self.dbase.update_wb_user(
+        await self.dbase.update_wb_user(
             user_id=user_id,
             update_data={'signature_to_answer': new_signature}
         )
@@ -447,13 +447,13 @@ class SignatureToTheAnswer(BaseButton, Utils):
         return [GoToBack(new=False)]
 
     def _set_messages(self) -> dict:
-        messages = [MessageEnterSignatureForSignatureToTheAnswerButton(self.button_id, parent_name=self.class_name)]
+        messages = [MessageEnterSignatureForSignatureToTheAnswerButton(parent_name=self.class_name)]
         return {message.state_or_key: message for message in messages}
 
     async def _set_answer_logic(self, update, state: FSMContext):
         signature = None
 
-        if wb_user := self.dbase.wb_user_get_or_none(user_id=update.from_user.id):
+        if wb_user := await self.dbase.wb_user_get_or_none(user_id=update.from_user.id):
             signature = wb_user.signature_to_answer
 
         if signature:

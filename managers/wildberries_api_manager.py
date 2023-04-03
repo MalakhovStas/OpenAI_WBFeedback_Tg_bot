@@ -80,7 +80,7 @@ class WBAPIManager:
             update = kwargs.get('update')
             user_id = kwargs.get('user_id') if kwargs.get('user_id') else update.from_user.id
 
-            wb_user = self.dbase.wb_user_get_or_none(user_id=user_id)
+            wb_user = await self.dbase.wb_user_get_or_none(user_id=user_id)
             seller_token = wb_user.sellerToken
             passport_token = wb_user.passportToken
             wb_user_id = wb_user.WB_user_id
@@ -142,7 +142,7 @@ class WBAPIManager:
             )
             self.logger.debug(self.sign + f'send phoneNumber: {phone_number}, response: {response_request}')
             if sms_token := await self.get_token(response_request):
-                self.dbase.save_phone_number_and_sms_token(phone_number, sms_token, user_id=user_id)
+                await self.dbase.save_phone_number_and_sms_token(phone_number, sms_token, user_id=user_id)
         return sms_token
 
     async def send_sms_code(self, sms_code: str, sms_token: str, update: Message | CallbackQuery | None = None,
@@ -158,7 +158,7 @@ class WBAPIManager:
             )
             self.logger.debug(self.sign + f'send sms code: {sms_code}, response: {response_request}')
             if seller_token := await self.get_token(response_request):
-                self.dbase.save_seller_token(seller_token, user_id=user_id)
+                await self.dbase.save_seller_token(seller_token, user_id=user_id)
         return seller_token
 
     async def get_seller_token_from_passport_token(self, passport_token: str,
@@ -177,7 +177,7 @@ class WBAPIManager:
             self.logger.debug(self.sign + f'get_seller_token_from_passport_token -> send passportToken, '
                                           f'response: {response_request}')
             if seller_token := await self.get_token(response_request):
-                self.dbase.save_seller_token(seller_token, user_id=user_id)
+                await self.dbase.save_seller_token(seller_token, user_id=user_id)
         return seller_token
 
     async def introspect_seller_token(self, seller_token: str, update: Message | CallbackQuery | None = None,
@@ -195,7 +195,7 @@ class WBAPIManager:
         if response_request and response_request.get('success'):
             if response := response_request.get('response'):
                 if wb_user_id := response.get('userId'):
-                    self.dbase.save_wb_user_id(wb_user_id=wb_user_id, user_id=user_id)
+                    await self.dbase.save_wb_user_id(wb_user_id=wb_user_id, user_id=user_id)
                     return wb_user_id
         return False
 
@@ -214,7 +214,7 @@ class WBAPIManager:
             )
             self.logger.debug(self.sign + f'get_passport_token -> send sellerToken, response: {response_request}')
             if passport_token := await self.get_token(response_request):
-                self.dbase.save_passport_token(passport_token, user_id=user_id)
+                await self.dbase.save_passport_token(passport_token, user_id=user_id)
         return passport_token
 
     @wrapper_checking_seller_token_before_sending_request
@@ -250,7 +250,7 @@ class WBAPIManager:
             except KeyError as exc:
                 self.logger.warning(self.sign + f'ERROR -> {exc=}')
             else:
-                self.dbase.save_suppliers(suppliers, user_id=user_id)
+                await self.dbase.save_suppliers(suppliers, user_id=user_id)
 
         if not suppliers:
             self.logger.warning(self.sign + f'BAD -> {suppliers=} | {response=}')
@@ -284,7 +284,7 @@ class WBAPIManager:
             x_supplier_id = supplier.lstrip('Supplier') if supplier else ''
             supplier_name = supplier if supplier else ''
 
-        wb_user = self.dbase.wb_user_get_or_none(user_id=user_id)
+        wb_user = await self.dbase.wb_user_get_or_none(user_id=user_id)
         seller_token = wb_user.sellerToken if not seller_token else seller_token
         ignored_feeds = wb_user.ignored_feedbacks
         unanswered_feeds = wb_user.unanswered_feedbacks
@@ -325,7 +325,7 @@ class WBAPIManager:
         else:
             result_feedbacks = await self.m_utils.set_hint_in_answer_for_many_feeds(feedbacks=result_feedbacks)
 
-        self.dbase.save_unanswered_feedbacks(unanswered_feedbacks=result_feedbacks, user_id=user_id)
+        await self.dbase.save_unanswered_feedbacks(unanswered_feedbacks=result_feedbacks, user_id=user_id)
         self.logger.debug(self.sign + f'{len(result_feedbacks)=} | {supplier_name=}')
 
         supplier_total_feeds = len([feed for feed in total_feeds_in_db.values()

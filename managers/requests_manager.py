@@ -6,7 +6,7 @@ from typing import Iterable
 import aiohttp
 from aiohttp_proxy import ProxyConnector, ProxyType
 
-from config import USE_PROXI, PROXI_FILE, TYPE_PROXI
+from config import USE_PROXI, PROXI_FILE, TYPE_PROXI, RM_TIMEOUT
 
 
 class RequestsManager:
@@ -110,20 +110,20 @@ class RequestsManager:
             while step < 4:
                 try:
                     if method == 'post':
-                        async with session.post(url, data=data, ssl=False, timeout=20) as response:
+                        async with session.post(url, data=data, ssl=False, timeout=RM_TIMEOUT) as response:
                             if response.content_type in ['text/html', 'text/plain']:
                                 result = {'response': await response.text()}
                             else:
                                 result = await response.json()
                     elif method == 'patch':
-                        async with session.patch(url, data=data, ssl=False, timeout=20) as response:
+                        async with session.patch(url, data=data, ssl=False, timeout=RM_TIMEOUT) as response:
                             if response.content_type in ['text/html', 'text/plain']:
                                 result = {'response': await response.text()}
                             else:
                                 result = await response.json()
 
                     else:
-                        async with session.get(url, ssl=False, timeout=20) as response:
+                        async with session.get(url, ssl=False, timeout=RM_TIMEOUT) as response:
                             if response.content_type in ['text/html', 'text/plain']:
                                 result = {'response': await response.text()}
                             else:
@@ -131,8 +131,8 @@ class RequestsManager:
 
                 except Exception as exception:
                     text = f'try again' if step < 3 else 'brake requests return EMPTY DICT'
-                    self.logger.warning(self.sign + f'{step=} | func=aio_request -> ERROR {exception=} '
-                                                    f'| use {proxi=} -> {text}')
+                    self.logger.warning(self.sign + f'ERROR -> {step=} | {exception=} '
+                                                    f'| use proxi {ip=} | {port=} | {login=} | {password=} -> {text}')
                     step += 1
                 else:
                     self.logger.debug(self.sign + f'{step=} | func=aio_request return={str(result)[:100]}...')

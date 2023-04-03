@@ -90,7 +90,7 @@ class WBParsingManager:
                 pass
 
             else:
-                self.dbase.save_suppliers(supplier, user_id=user_id)
+                await self.dbase.save_suppliers(supplier, user_id=user_id)
 
         if not supplier:
             self.logger.warning(self.sign + f'ERROR {response=} | {exc=}')
@@ -134,7 +134,7 @@ class WBParsingManager:
         supplier_name = f'SupplierParsing{supplier_id}'
         user_id = user_id if user_id else update.from_user.id
 
-        wb_user = self.dbase.wb_user_get_or_none(user_id=user_id)
+        wb_user = await self.dbase.wb_user_get_or_none(user_id=user_id)
         ignored_feeds = wb_user.ignored_feedbacks
         unanswered_feeds = wb_user.unanswered_feedbacks
         total_feeds_in_db = ignored_feeds | unanswered_feeds
@@ -182,7 +182,7 @@ class WBParsingManager:
         else:
             result_feeds = await self.m_utils.set_hint_in_answer_for_many_feeds(feedbacks=result_feeds)
 
-        self.dbase.save_unanswered_feedbacks(unanswered_feedbacks=result_feeds, user_id=user_id)
+        await self.dbase.save_unanswered_feedbacks(unanswered_feedbacks=result_feeds, user_id=user_id)
 
         supplier_total_feeds = len([feed for feed in total_feeds_in_db.values()
                                     if feed.get('supplier') == supplier_name]) + len(result_feeds)

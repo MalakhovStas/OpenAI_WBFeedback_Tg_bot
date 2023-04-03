@@ -91,10 +91,10 @@ class AdminsManager:
             text = '<b>Файлы с логами отправлены</b>'
 
         else:
-            num_users = self.dbase.count_users(all_users=True)
-            num_users_active_from_24hours = self.dbase.count_users(
+            num_users = await self.dbase.count_users(all_users=True)
+            num_users_active_from_24hours = await self.dbase.count_users(
                 date=datetime.now().replace(microsecond=0) - timedelta(hours=24))
-            num_users_active_from_week = self.dbase.count_users(date=datetime.now().date() - timedelta(days=7))
+            num_users_active_from_week = await self.dbase.count_users(date=datetime.now().date() - timedelta(days=7))
 
             if command == '/how_users':
                 text = f'В базе: {num_users} пользователей'
@@ -104,7 +104,7 @@ class AdminsManager:
                 new_users_in_month = 0
 
                 for day in range(datetime.now().date().day, 0, -1):
-                    new_users_in_day = self.dbase.count_users(date=datetime.now().date() - timedelta(days=day - 1))
+                    new_users_in_day = await self.dbase.count_users(date=datetime.now().date() - timedelta(days=day - 1))
                     new_users_in_month += new_users_in_day
                     line += f'\n{datetime.now().day - day + 1}  /  {new_users_in_day}'
 
@@ -124,7 +124,7 @@ class AdminsManager:
                 ws.append(('Число месяца  /  новых пользователей',))
                 new_users_in_month = 0
                 for day in range(datetime.now().date().day, 0, -1):
-                    new_users_in_day = self.dbase.count_users(date=datetime.now().date()-timedelta(days=day - 1))
+                    new_users_in_day = await self.dbase.count_users(date=datetime.now().date()-timedelta(days=day - 1))
                     new_users_in_month += new_users_in_day
                     ws.append((f'{datetime.now().day - day + 1}  /  {new_users_in_day}',))
                 ws.append((f'Всего в этом месяце: {new_users_in_month}',))
@@ -132,7 +132,7 @@ class AdminsManager:
 
                 ws.append(('User_id', 'Name', 'Username', 'Дата регистрации', 'Дата последнего запроса',
                            'Текст последнего запроса', 'Всего запросов', 'Бан от пользователя'))
-                for user in self.dbase.select_all_contacts_users():
+                for user in await self.dbase.select_all_contacts_users():
                     ws.append((user.user_id, user.first_name, f'{f"@{user.username}" if user.username else ""}',
                                user.date_join, user.date_last_request, user.text_last_request, user.num_requests,
                                user.ban_from_user))
@@ -144,7 +144,7 @@ class AdminsManager:
         return text, next_state, type_result
 
     async def in_password(self, update: Message, current_state: FSMAdminStates) -> tuple:
-        password: str = self.dbase.select_password(user_id=update.from_user.id)
+        password: str = await self.dbase.select_password(user_id=update.from_user.id)
 
         text = None
         next_state = None
@@ -169,7 +169,7 @@ class AdminsManager:
             id_users = tuple(set(self.admins + self.tech_admins))
         else:
             # id_users: tuple = self.dbase.get_all_users(id_only=True)  # рассылка по всем, нужна для обновления данных
-            id_users: tuple = self.dbase.get_all_users(id_only=True, not_ban=True)  # о тем кто не забанил бота
+            id_users: tuple = await self.dbase.get_all_users(id_only=True, not_ban=True)  # о тем кто не забанил бота
 
         start_mailing = datetime.now()
 
@@ -225,7 +225,7 @@ class AdminsManager:
             error = error.__repr__()
             # dict_errors[error] = dict_errors.get(error) + 1 if dict_errors.get(error) else 1
             self.logger.error(self.sign + f'BAD -> not send to user {user_id} error: {error}')
-            self.dbase.update_ban_from_user(update=update, ban_from_user=True)
+            await self.dbase.update_ban_from_user(update=update, ban_from_user=True)
             return False, error
 
         except Exception as error:
@@ -236,7 +236,7 @@ class AdminsManager:
 
         # Чтобы ускорить рассылку закомментировать код ниже
         else:
-            self.dbase.update_ban_from_user(update=update, ban_from_user=False)
+            await self.dbase.update_ban_from_user(update=update, ban_from_user=False)
 
         return True, None
 
@@ -244,7 +244,7 @@ class AdminsManager:
         text, next_state = None, 'not_reset'
         if user_id.isdigit():
 
-            if result := self.dbase.update_user_access(user_id=user_id, block=block):
+            if result := await self.dbase.update_user_access(user_id=user_id, block=block):
 
                 text = f'<b>Пользователь:</b> {user_id}\n{"<b>Контакт:</b> https://t.me/" + result[1] if result[1] else ""}\n' \
                        f'<b>{"ЗАБЛОКИРОВАН" if block else "РАЗБЛОКИРОВАН"}</b>'
@@ -266,8 +266,8 @@ class AdminsManager:
             down_balance = data[1][1:] if data[1].startswith('-') else None
             zero_balance = True if data[1] == '0' else None
 
-            if result := self.dbase.update_user_balance(user_id=user_id, up_balance=up_balance,
-                                                        down_balance=down_balance, zero_balance=zero_balance):
+            if result := await self.dbase.update_user_balance(user_id=user_id, up_balance=up_balance,
+                                                              down_balance=down_balance, zero_balance=zero_balance):
 
                 if not result[0] and result[1] == 'bad data':
                     text = f'Ошибка обновления баланса, возможно введены некорректные данные, ' \

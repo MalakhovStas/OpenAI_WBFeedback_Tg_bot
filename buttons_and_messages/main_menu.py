@@ -18,9 +18,9 @@ class PersonalCabinet(BaseButton):
         return FSMPersonalCabinetStates.personal_cabinet
 
     def _set_children(self) -> list:
-        return [WildberriesCabinet(parent_name=self.class_name, parent_button=self),
-                SetUpNotificationTimes(parent_name=self.class_name, parent_button=self),
-                SignatureToTheAnswer(parent_name=self.class_name, parent_button=self)]
+        return [WildberriesCabinet(parent_name=self.class_name),
+                SetUpNotificationTimes(parent_name=self.class_name),
+                SignatureToTheAnswer(parent_name=self.class_name)]
 
 
 class AnswerManagement(BaseButton, Utils):
@@ -109,7 +109,7 @@ class CreateResponseManually(BaseButton):
         return FSMMainMenuStates.create_response_manually
 
     def _set_messages(self) -> dict:
-        message = MessageOnceForCreateResponseManuallyButton(self.button_id)
+        message = MessageOnceForCreateResponseManuallyButton(parent_name=self.class_name)
         return {message.state_or_key: message}
 
 
@@ -153,8 +153,8 @@ class MainMenu(BaseButton):
         return 'reset_state'
 
     def _set_children(self) -> list:
-        return [PersonalCabinet(parent_name=self.class_name, parent_button=self),
-                AnswerManagement(parent_name=self.class_name, parent_button=self),
-                CreateResponseManually(parent_name=self.class_name, parent_button=self),
-                AboutBot(parent_name=self.class_name, parent_button=self),
-                SupportButton(parent_name=self.class_name, parent_button=self)]
+        return [PersonalCabinet(parent_name=self.class_name),
+                AnswerManagement(parent_name=self.class_name),
+                CreateResponseManually(parent_name=self.class_name),
+                AboutBot(parent_name=self.class_name),
+                SupportButton(parent_name=self.class_name)]

@@ -23,8 +23,8 @@ class AnswerLogicManager:
         self.logger = logger
         self.sign = self.__class__.__name__ + ': '
 
-    async def create_keyboard(self, buttons: list | None, insert: bool = False,
-                              main_menu: bool = False, parent_button: Any | None = None) -> InlineKeyboardMarkup:
+    async def create_keyboard(self, buttons: list | None, insert: bool = False, main_menu: bool = False,
+                              parent_button: Any | None = None, add_ulf: bool = False) -> InlineKeyboardMarkup:
 
         parent_button = self.main if not parent_button else parent_button
 
@@ -60,22 +60,8 @@ class AnswerLogicManager:
                         if insert and not main_menu else keyboard.add(InlineKeyboardButton(
                             text=button_name, callback_data=button.callback, url=button.url))
 
-        # print(buttons)
-        # print(parent_button)
-        # print([button for button in buttons if not button.class_name == 'GoToBack'])
-        # print([(button.class_name.startswith('Supplier') , button.children_buttons) for button in buttons
-        #        if not button.class_name in ['GoToBack', 'EnterSupplierID']])
-        # (len(buttons) == 1 and buttons[0].class_name == 'GoToBack'
-
         """ Если есть хотя-бы одна кнопка-отзыв или нет ни одной кнопки кроме >назад< добавляем кнопку >обновить<"""
-        # print('parent_button.class_name', parent_button.class_name)
-        # and parent_button.class_name not in ['AnswerManagement', 'MainMenu'])
-
-        if any(button.class_name.startswith('Feedback') for button in buttons) or \
-                (not parent_button.class_name in ['EnterSupplierID', 'SignatureToTheAnswer',
-                                                  'MainMenu', 'SetUpNotificationTimes', 'SelectAPIMode'] and
-                 not [button for button in buttons if not button.class_name == 'GoToBack']):
-
+        if add_ulf:
             keyboard.insert(InlineKeyboardButton(text='🌐 Обновить информацию', callback_data='UpdateListFeedbacks'))
 
         if main_menu:
@@ -86,8 +72,9 @@ class AnswerLogicManager:
 
     async def get_reply(self, update: Message | CallbackQuery | None = None, state: FSMContext | None = None,
                         button: Any | None = None, message: Any | None = None, insert: bool = False,
-                        main_menu: bool = True, not_keyboard: bool = False) -> tuple[str | None, InlineKeyboardMarkup | None, str | None]:
-
+                        main_menu: bool = True,
+                        not_keyboard: bool = False) -> tuple[str | None, InlineKeyboardMarkup | None, str | None]:
+        add_ulf = False
         buttons = None
         current_data = {}
         current_state = None
@@ -183,7 +170,6 @@ class AnswerLogicManager:
                 pb_name = 'SelectSupplierIDMode'
             else:
                 pb_name = 'WildberriesCabinet'
-
             parent_button = await self.main.button_search_and_action_any_collections(
                 user_id=update.from_user.id, action='get', button_name=pb_name)
 
@@ -196,10 +182,17 @@ class AnswerLogicManager:
         else:
             parent_button = button.parent_button if button else None
 
+        if any(but.class_name.startswith('Feedback') for but in buttons) or \
+                (button and button.class_name.startswith('Supplier')
+                 and reply_text == self.main.default_not_feeds_in_supplier) or \
+                (button and button.class_name.startswith('Supplier') and
+                 reply_text == self.main.default_choice_feedback and
+                 not [btn for btn in buttons if btn.class_name != 'GoToBack']):
+            add_ulf = True
+
         if not_keyboard:
             keyboard = None
         else:
-            keyboard = await self.create_keyboard(
-                buttons=buttons, insert=insert, main_menu=main_menu, parent_button=parent_button)
-
+            keyboard = await self.create_keyboard(buttons=buttons, insert=insert, main_menu=main_menu,
+                                                  parent_button=parent_button, add_ulf=add_ulf)
         return reply_text, keyboard, next_state

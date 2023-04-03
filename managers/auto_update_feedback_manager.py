@@ -45,7 +45,7 @@ class AutoUpdateFeedbackManager:
         start_time = time.time()
         total_suppliers = 0
         total_found_new_unanswered_feedbacks = 0
-        wb_users = self.dbase.select_all_wb_users()
+        wb_users = await self.dbase.select_all_wb_users()
         self.logger.info(self.sign + f'\033[31mSTART LOOKING FEEDBACKS\033[0m -> num users:{len(wb_users)}')
 
         for wb_user in wb_users:

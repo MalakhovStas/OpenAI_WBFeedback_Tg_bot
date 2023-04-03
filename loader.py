@@ -1,12 +1,12 @@
-from datetime import datetime, timedelta
+# from datetime import datetime, timedelta
 
 from aiogram import Bot, Dispatcher, types
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from loguru import logger
-from pyqiwip2p import AioQiwiP2P
+# from pyqiwip2p import AioQiwiP2P
 
 from config import BOT_TOKEN, QIWI_PRIV_KEY, LOGGER_ERRORS, LOGGER_DEBUG, AUFM_INTERVAL_SECONDS
-from managers.db_manager import DBManager
+from managers.async_db_manager import DBManager
 from managers.openai_manager import OpenAIManager
 from managers.reload_dump_manager import ReloadDumpManager
 # from managers.reload_dump_manager import ReloadDumpManager

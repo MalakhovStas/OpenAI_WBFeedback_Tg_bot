@@ -29,7 +29,6 @@ class DBManager:
             cls.sign = cls.__name__ + ': '
             cls.logger = logger
             cls.decorate_methods()
-
         return cls.__instance
 
     def __init__(self):
@@ -41,9 +40,9 @@ class DBManager:
     @staticmethod
     def db_connector(method: Callable) -> Callable:
         @functools.wraps(method)
-        def wrapper(*args, **kwargs) -> Any:
+        async def wrapper(*args, **kwargs) -> Any:
             with DBManager.point_db_connection:
-                result = method(*args, **kwargs)
+                result = await method(*args, **kwargs)
             return result
         return wrapper
 
@@ -61,22 +60,22 @@ class DBManager:
     #     self.point_db_connection.create_tables(self.tables.all_tables())
     #     self.logger.debug(self.sign + f'OK -> create tables:{self.tables.all_tables()} in DB')
 
-    def get_all_messages(self):
-        result = self.tables.messages.select()
-        self.logger.debug(
-            self.sign + f'OK -> selected all messages from tables: {self.tables.messages}')
-        return result
+    # async def get_all_messages(self):
+    #     result = self.tables.messages.select()
+    #     self.logger.debug(
+    #         self.sign + f'OK -> selected all messages from tables: {self.tables.messages}')
+    #     return result
+    #
+    # async def reload_table_messages(self, data):
+    #     list_models = []
+    #     for message in data:
+    #         for key1, value in message.items():
+    #             list_models.append(self.tables.messages(callback_data=key1, **value))
+    #
+    #     self.tables.messages.truncate_table()
+    #     self.tables.messages.bulk_create(list_models)
 
-    def reload_table_messages(self, data):
-        list_models = []
-        for message in data:
-            for key1, value in message.items():
-                list_models.append(self.tables.messages(callback_data=key1, **value))
-
-        self.tables.messages.truncate_table()
-        self.tables.messages.bulk_create(list_models)
-
-    def get_or_create_user(self, update: Message | CallbackQuery) -> tuple[tuple, bool | int]:
+    async def get_or_create_user(self, update: Message | CallbackQuery) -> tuple[tuple, bool | int]:
         """ Если user_id не найден в таблице Users -> создаёт новые записи в
             таблицах Users и Wildberries по ключу user_id """
         fact_create_and_num_users = False
@@ -100,7 +99,7 @@ class DBManager:
         self.logger.debug(self.sign + f' {text.upper()}: {user.username=} | {user.user_id=}')
         return user, fact_create_and_num_users
 
-    def get_all_users(self, id_only: bool = False, not_ban: bool = False) -> tuple:
+    async def get_all_users(self, id_only: bool = False, not_ban: bool = False) -> tuple:
         if not_ban and id_only:
             result = tuple(self.tables.users.select(
                 self.tables.users.user_id).where(self.tables.users.ban_from_user == 0))
@@ -119,8 +118,8 @@ class DBManager:
 
         return result
 
-    def update_user_balance(self, user_id: str, up_balance: str | None = None,
-                            down_balance: str | None = None, zero_balance: bool = False) -> tuple | bool:
+    async def update_user_balance(self, user_id: str, up_balance: str | None = None,
+                                  down_balance: str | None = None, zero_balance: bool = False) -> tuple | bool:
         user = self.tables.users.get_or_none(user_id=user_id)
         if not user:
             return False
@@ -145,7 +144,7 @@ class DBManager:
         self.logger.debug(self.sign + f'func update_user_balance -> user_id: {user_id} | {result}')
         return True, user.balance, user.username
 
-    def update_user_access(self, user_id: str | int, block: bool = False) -> bool | tuple:
+    async def update_user_access(self, user_id: str | int, block: bool = False) -> bool | tuple:
         user = self.tables.users.get_or_none(user_id=user_id)
         if not user:
             return False
@@ -158,7 +157,7 @@ class DBManager:
                                       f'| user_id: {user_id}')
         return True, user.username
 
-    def update_ban_from_user(self, update, ban_from_user: bool = False) -> bool | tuple:
+    async def update_ban_from_user(self, update, ban_from_user: bool = False) -> bool | tuple:
         user: Tables.users = self.tables.users.get_or_none(user_id=update.from_user.id)
         if not user:
             return False
@@ -168,7 +167,7 @@ class DBManager:
                                       f'user_id: {update.from_user.id} | ban: {ban_from_user}')
         return True, user.username
 
-    def count_users(self, all_users: bool = False, register: bool = False,  date: datetime | None = None) -> str:
+    async def count_users(self, all_users: bool = False, register: bool = False,  date: datetime | None = None) -> str:
         if all_users:
             nums = self.tables.users.select().count()
             self.logger.debug(self.sign + f'func count_users -> all users {nums}')
@@ -184,7 +183,7 @@ class DBManager:
 
         return nums
 
-    def select_all_contacts_users(self) -> tuple:
+    async def select_all_contacts_users(self) -> tuple:
         users = self.tables.users.select(
             self.tables.users.user_id,
             self.tables.users.first_name,
@@ -202,13 +201,13 @@ class DBManager:
 
         return users
 
-    def select_password(self, user_id: int) -> str:
+    async def select_password(self, user_id: int) -> str:
         user = self.tables.users.select(self.tables.users.password).where(self.tables.users.user_id == user_id).get()
         self.logger.debug(self.sign + f'func select_password password -> len password {len(user.password)}')
 
         return user.password
 
-    def update_last_request_data(self, update, text_last_request: str) -> bool | None:
+    async def update_last_request_data(self, update, text_last_request: str) -> bool | None:
         user = self.tables.users.get_or_none(user_id=update.from_user.id)
         if not user:
             return False
@@ -221,100 +220,96 @@ class DBManager:
                                       f'user_id:{update.from_user.id} | '
                                       f'last_request_data: {text_last_request}')
 
-    """Методы работы с таблицей buttons"""
-
-    def button_get_or_create(self, button_id: int, button_data: dict) -> Tables.buttons | None:
-        button, fact_create = self.tables.buttons.get_or_create(button_id=button_id)
-        if button and button_data:
-            button.parent_id = button_data.get('parent_id')
-            button.name = button_data.get('name')
-            button.callback = button_data.get('callback')
-            button.reply_text = button_data.get('reply_text')
-            button.save()
-        if fact_create:
-            self.logger.debug(self.sign + f'-> OK CREATE NEW -> {button.name=} | {button_data=}')
-        else:
-            self.logger.debug(self.sign + f'-> OK UPDATE -> {button.name=} | {button_data=}')
-        return button
-
-    def update_button(self, button_id: int, update_data: dict) -> Tables.buttons | None:
-        button = self.tables.buttons.get_or_none(button_id=button_id)
-
-        if not self.tables.buttons.update(**update_data).where(self.tables.buttons.button_id == button_id).execute():
-            self.logger.warning(self.sign + f'-> ERROR -> not update button: {button.__data__=}')
-
-        button = self.tables.buttons.get_or_none(button_id=button_id)
-        self.logger.debug(self.sign + f'-> OK UPDATE -> {button.name=} | {update_data=}')
-        return button
-
-    """Методы работы с таблицей messages"""
-
-    def message_get_or_create(self, button_id: int, message_data: dict) -> Tables.messages | None:
-        message, fact_create = self.tables.messages.get_or_create(button_id=button_id)
-        if message:
-            message.state_or_key = message_data.get('state_or_key')
-            message.reply_text = message_data.get('reply_text')
-            message.children_buttons = message_data.get('children_buttons')
-            if fact_create:
-                self.logger.debug(self.sign + f'create new {message.state_or_key=} | {message_data=}')
-            else:
-                self.logger.debug(self.sign + f'update {message.state_or_key=} | {message_data=}')
-        return message
+    # """Методы работы с таблицей buttons"""
+    # async def button_get_or_create(self, class_name: str, button_data: dict) -> Tables.buttons | None:
+    #     button, fact_create = self.tables.buttons.get_or_create(class_name=class_name)
+    #     if button and button_data:
+    #         button.user_id = button_data.get('user_id')
+    #         button.parent_name = button_data.get('parent_name')
+    #         button.name = button_data.get('name')
+    #         button.callback = button_data.get('callback')
+    #         button.reply_text = button_data.get('reply_text')
+    #         button.next_state = button_data.get('next_state')
+    #         button.url = button_data.get('url')
+    #         button.save()
+    #     if fact_create:
+    #         self.logger.debug(self.sign + f'-> OK CREATE NEW -> {button.class_name=} | {button_data=}')
+    #     else:
+    #         self.logger.debug(self.sign + f'-> OK UPDATE -> {button.class_name=} | {button_data=}')
+    #     return button
+    #
+    # async def update_button(self, class_name: str, update_data: dict) -> Tables.buttons | None:
+    #     button = self.tables.buttons.get_or_none(class_name=class_name)
+    #     if not self.tables.buttons.update(**update_data).where(self.tables.buttons.class_name == class_name).execute():
+    #         self.logger.warning(self.sign + f'-> ERROR -> NOT UPDATE {class_name=}')
+    #     else:
+    #         self.logger.debug(self.sign + f'-> OK UPDATE -> {button.class_name=} | {update_data=}')
+    #     return button
+    #
+    # async def delete_button(self, class_name: str):
+    #     if self.tables.buttons.delete_by_id(class_name):
+    #         self.logger.debug(self.sign + f'-> OK DELETE -> button.{class_name=}')
+    #
+    # """Методы работы с таблицей messages"""
+    # async def message_get_or_create(self, class_name: str, message_data: dict) -> Tables.messages | None:
+    #     message, fact_create = self.tables.messages.get_or_create(class_name=class_name)
+    #     if message:
+    #         message.state_or_key = message_data.get('state_or_key')
+    #         message.parent_name = message_data.get('parent_name')
+    #         message.reply_text = message_data.get('reply_text')
+    #         message.children_buttons = message_data.get('children_buttons')
+    #         message.save()
+    #         if fact_create:
+    #             self.logger.debug(self.sign + f'create new {message.state_or_key=} | {message_data=}')
+    #         else:
+    #             self.logger.debug(self.sign + f'update {message.state_or_key=} | {message_data=}')
+    #     return message
 
     """ Методы работы с таблицей wildberries"""
-    def select_all_wb_users(self):
+    async def select_all_wb_users(self):
         wb_users = list(self.tables.wildberries.select())
-        # query = (self.tables.wildberries
-        #          .select()
-        #          .join(self.tables.users, JOIN.INNER)
-        #          .switch(self.tables.wildberries.user_id)
-        #  )
-        # for row in query:
-        #     print(row.__dict__)
-        # print(row.notification_times)
         return wb_users
 
-    def wb_user_get_or_none(self, user_id: int) -> Tables.wildberries | None:
+    async def wb_user_get_or_none(self, user_id: int) -> Tables.wildberries | None:
         wb_user = self.tables.wildberries.get_or_none(user_id=user_id)
-        # self.logger.info(self.sign + f' wb_user_get_or_none {wb_user=}')
+        self.logger.info(self.sign + f' wb_user_get_or_none {wb_user=}')
         return wb_user
 
-    def update_wb_user(self, user_id: int, update_data: dict) -> Tables.wildberries | None:
-        wb_user = self.wb_user_get_or_none(user_id=user_id)
+    async def update_wb_user(self, user_id: int, update_data: dict) -> Tables.wildberries | None:
+        wb_user = await self.wb_user_get_or_none(user_id=user_id)
 
         if not self.tables.wildberries.update(**update_data).where(
                 self.tables.wildberries.user_id == user_id).execute():
             self.logger.error(self.sign + f'update_wb_user ERROR -> {user_id=} -> '
                                           f'NOT UPDATE: {wb_user.__data__=} | {update_data=}')
 
-        wb_user = self.wb_user_get_or_none(user_id=user_id)
+        wb_user = await self.wb_user_get_or_none(user_id=user_id)
         self.logger.debug(self.sign + f'update_wb_user -> Telegram user_id: {wb_user.user_id} | '
                                       f'{wb_user.WB_user_id=} | {update_data.keys()=}')
 
         return wb_user
 
     """Методы работы с WBManager"""
-
-    def save_phone_number_and_sms_token(self, phone_number, sms_token, user_id):
+    async def save_phone_number_and_sms_token(self, phone_number, sms_token, user_id):
         if wb_user := self.tables.wildberries.get_or_none(user_id=user_id):
             wb_user.phone = phone_number
             wb_user.sms_token = sms_token
             wb_user.save()
 
-    def save_seller_token(self, seller_token, user_id):
+    async def save_seller_token(self, seller_token, user_id):
         self.logger.info(self.sign + f'save sellerToken: {seller_token}')
 
         if wb_user := self.tables.wildberries.get_or_none(user_id=user_id):
             wb_user.sellerToken = seller_token
             wb_user.save()
 
-    def save_passport_token(self, passport_token, user_id):
+    async def save_passport_token(self, passport_token, user_id):
         self.logger.info(self.sign + f'save passportToken: {passport_token}')
         if wb_user := self.tables.wildberries.get_or_none(user_id=user_id):
             wb_user.passportToken = passport_token
             wb_user.save()
 
-    def save_wb_user_id(self, wb_user_id, user_id):
+    async def save_wb_user_id(self, wb_user_id, user_id):
         self.logger.debug(self.sign + f'check {wb_user_id=} | {user_id=}')
         if wb_user := self.tables.wildberries.get_or_none(user_id=user_id):
             if not wb_user.WB_user_id or wb_user.WB_user_id != wb_user_id:
@@ -322,24 +317,13 @@ class DBManager:
                 wb_user.save()
                 self.logger.info(self.sign + f'save wb_user_id: {wb_user_id}')
 
-    def save_suppliers(self, suppliers: dict, user_id):
+    async def save_suppliers(self, suppliers: dict, user_id):
         self.logger.info(self.sign + f'save suppliers: {suppliers}')
         if wb_user := self.tables.wildberries.get_or_none(user_id=user_id):
-            #todo dict update pythoon???
             wb_user.suppliers.update(suppliers)
             wb_user.save()
 
-        # for s_name, s_id in suppliers.items():
-        #     supplier = self.tables.suppliers.get_or_create(x_supplier_id=s_id, user_id=user_id, name=s_name,
-        #                                                    callback=f'Shop{s_id}')
-            # supplier.name = s_name
-            # supplier.save()
-
-    # def get_suppliers(self):
-    #     TODO
-        # pass
-
-    def save_unanswered_feedbacks(self, unanswered_feedbacks: dict, user_id):
+    async def save_unanswered_feedbacks(self, unanswered_feedbacks: dict, user_id):
         """ Сохранение отзывов в БД -> wildberries -> unanswered_feedbacks """
         wb_user = self.tables.wildberries.get_or_none(user_id=user_id)
         if wb_user:

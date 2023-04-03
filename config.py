@@ -110,6 +110,9 @@ FLOOD_CONTROL_STOP_TIME = 60
 WB_TAKE = 150
 # WB_TAKE = 5
 
+""" Настройки дефолтного timeout для aiohttp запросов RequestsManager """
+RM_TIMEOUT = 10
+
 """ Отображаемое кол-во отзывов на кнопке supplier 'all' / '99+' """
 NUM_FEEDS_ON_SUPPLIER_BUTTON = '99+'
 # NUM_FEEDS_ON_SUPPLIER_BUTTON = 'all'

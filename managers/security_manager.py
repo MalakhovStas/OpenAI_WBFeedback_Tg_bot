@@ -50,7 +50,7 @@ class SecurityManager:
         user_id = update.from_user.id
 
         # Тут создаётся new user и wb_user
-        user, fact_create_and_num_users = self.dbase.get_or_create_user(update=update)
+        user, fact_create_and_num_users = await self.dbase.get_or_create_user(update=update)
 
         if fact_create_and_num_users:
             from utils.admins_send_message import func_admins_message

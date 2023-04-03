@@ -6,7 +6,7 @@ class BaseTimezoneButton(BaseButton):
         return 'Время уведомлений успешно изменено'
 
     async def _set_answer_logic(self, update, state):
-        self.dbase.update_wb_user(
+        await self.dbase.update_wb_user(
             user_id=update.from_user.id,
             update_data={'timezone_notification_times': self.name}
         )
