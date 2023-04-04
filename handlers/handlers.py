@@ -20,16 +20,16 @@ async def delete_message(chat_id, message_id):
 @exception_handler_wrapper
 async def get_message_handler(message: Message, state: FSMContext) -> None:
     """ Обработчик сообщений """
-    parse_mode = ParseMode.HTML
     reply_text, keyboard, next_state = await alm.get_reply(update=message, state=state)
     disable_w_p_p = False if reply_text in [ADVERT_BID_BOT, BOT_POS, SCHOOL] else True
 
     if reply_text.strip().endswith(':ai:some_question'):
         reply_text = reply_text.rstrip(':ai:some_question')
-        parse_mode = None
+        bot.parse_mode = None
 
-    sent_message = await bot.send_message(chat_id=message.from_user.id, text=reply_text, reply_markup=keyboard,
-                                          disable_web_page_preview=disable_w_p_p, parse_mode=parse_mode)
+    sent_message = await bot.send_message(chat_id=message.from_user.id, text=reply_text,
+                                          reply_markup=keyboard, disable_web_page_preview=disable_w_p_p)
+    bot.parse_mode = ParseMode.HTML
 
     await state.update_data(last_handler_sent_message_id=sent_message.message_id,
                             last_handler_sent_from_message_message_id=sent_message.message_id)
@@ -60,8 +60,8 @@ async def get_call_handler(call: CallbackQuery, state: FSMContext) -> None:
 
     await delete_message(chat_id=call.from_user.id, message_id=call.message.message_id)
 
-    sent_message = await bot.send_message(chat_id=call.from_user.id, text=reply_text, reply_markup=keyboard,
-                                          disable_web_page_preview=True)
+    sent_message = await bot.send_message(chat_id=call.from_user.id, text=reply_text,
+                                          reply_markup=keyboard, disable_web_page_preview=True)
 
     await state.update_data(last_handler_sent_message_id=sent_message.message_id,
                             last_handler_sent_from_call_message_id=sent_message.message_id)
