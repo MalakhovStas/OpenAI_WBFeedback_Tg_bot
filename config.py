@@ -48,7 +48,7 @@ SUPPORT = os.getenv('SUPPORT')
 
 """ Команды бота """
 DEFAULT_COMMANDS = (
-    ('start', 'запустить бота'),
+    ('start', 'Запустить бота'),
     ('my_shops', 'Мои магазины'),
     ('add_shop', 'Добавить магазин'),
     ('advert_bid_bot', 'Бот ставок'),

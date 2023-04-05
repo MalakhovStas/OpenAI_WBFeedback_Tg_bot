@@ -102,8 +102,8 @@ class CreateResponseManually(BaseButton):
 
     def _set_reply_text(self) -> str:
         return FACE_BOT + 'О чём мне написать текст?' \
-                          '\n\n<b>Пример:</b> Чехол на iPhone 11. Очень понравился чехол. ' \
-                          'Мягкий, плотно сидит и хорошо защищает камеру.'
+                          '\n\n<b>Пример:</b> Напиши продающий текст с использованием слов: ' \
+                          'платье, большое, черное, лето, длинное.'
 
     def _set_next_state(self) -> str:
         return FSMMainMenuStates.create_response_manually

@@ -31,7 +31,7 @@ class Base(ABC):
     default_bad_text = 'Нет данных'
     default_service_in_dev = '🛠 Сервис в разработке, в ближайшее время функционал будет доступен'
     default_incorrect_data_input_text = FACE_BOT + 'Введены некорректные данные - {text}'
-    default_generate_answer = FACE_BOT + '✍ Генерирую ответ, немного подождите пожалуйста ...'
+    default_generate_answer = FACE_BOT + '✍ Пишу текст..., немного подождите пожалуйста ...'
     default_download_information = FACE_BOT + '🌐 {about}\nнемного подождите пожалуйста ...'
     default_choice_feedback = FACE_BOT + '<b>Выберите отзыв:</b>'
     default_not_feeds_in_supplier = FACE_BOT + '<b>В этом магазине отзывов пока нет</b>'
@@ -714,8 +714,8 @@ class DefaultButtonForAUFMGoToFeed(BaseButton):
 
 
 class Utils(Base):
-    list_children_buttons = [PostFeedback(), EditFeedback(),
-                             GenerateNewResponseToFeedback(), DontReplyFeedback(), GoToBack()]
+    list_children_buttons = [PostFeedback(), GenerateNewResponseToFeedback(),
+                             EditFeedback(), DontReplyFeedback(), GoToBack()]
     message_to_edit_feedback = {FSMPersonalCabinetStates.edit_feedback_answer: MessageEditFeedbackAnswer()}
 
     @classmethod
