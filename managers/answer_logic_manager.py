@@ -40,6 +40,9 @@ class AnswerLogicManager:
         if buttons:
             for index, button in enumerate(buttons, 1):
                 button_name = button.name
+                if button.class_name == 'CreateNewTaskForResponseManually':
+                    insert = True
+
                 if button.class_name == 'GoToBack':
                     main_menu = True
                     insert = True

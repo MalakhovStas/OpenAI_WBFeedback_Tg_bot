@@ -64,21 +64,31 @@ class OpenAIManager:
         self.logger.info(self.sign + f"answer: {text[:100]}...")
         return answer
 
-    async def answer_gpt_3_5_turbo(self, prompt: str, correct: bool = True) -> str:
+    async def answer_gpt_3_5_turbo(self, prompt: str, correct: bool = True, messages_data: list | None = None) -> str:
         """ Запрос к ChatGPT модель: gpt-3.5-turbo"""
+
         prompt = await self.prompt_correct(text=prompt) if correct else prompt
         self.logger.info(self.sign + f"question: {prompt[:100]}...")
+
+        messages_data = list() if not isinstance(messages_data, list) else messages_data
+        messages_data.append({"role": "user", "content": prompt})
+
         try:
             response = await asyncio.wait_for(self.openai.ChatCompletion.acreate(
                 model=MODEL,
-                messages=[{"role": "user", "content": prompt}],
+                messages=messages_data,
                 timeout=TIMEOUT
             ), timeout=TIMEOUT + 3)
             # print(response)
+
             if response and isinstance(response.get('choices'), Sequence):
                 answer = response['choices'][0]['message']['content'].strip('\n')
+                messages_data.append({"role": "assistant", "content": answer})
+
             else:
+                messages_data.pop(-1)
                 answer = self.__default_bad_answer
+
 
         except Exception as exception:
             # TODO Разобраться с циркулярным импортом
@@ -120,10 +130,10 @@ class OpenAIManager:
         else:
             return answer
 
-    async def some_question(self, prompt: str) -> str:
+    async def some_question(self, prompt: str, messages_data: list | None = None) -> str:
         if await self._check_type_str(prompt):
             if MODEL == 'gpt-3.5-turbo':
-                answer = await self.answer_gpt_3_5_turbo(prompt=prompt, correct=False)
+                answer = await self.answer_gpt_3_5_turbo(prompt=prompt, correct=False, messages_data=messages_data)
             else:
                 answer = await self.answer(prompt=prompt, correct=False)
             return answer

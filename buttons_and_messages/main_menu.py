@@ -69,6 +69,110 @@ class AnswerManagement(BaseButton, Utils):
     #     return reply_text, next_state
 
 
+class RegenerateAIResponse(BaseButton):
+
+    def _set_name(self) -> str:
+        return '🔁 \t Сгенерировать заново'
+
+    def _set_reply_text(self) -> str:
+        return FACE_BOT + 'Извините, произошла ошибка, попробуйте немного позже'
+
+    def _set_children(self) -> list:
+        return [self, SubmitForRevisionTaskResponseManually(new=False),
+                CreateNewTaskForResponseManually(new=False)]
+
+    async def _set_answer_logic(self, update, state) -> tuple[str | tuple, str | None]:
+        user_id = update.from_user.id
+        # reply_text = 'Я сгенерировал текст:\n\n'
+        reply_text = self.default_i_generate_text
+        wait_msg = await self.bot.send_message(chat_id=user_id, text=self.default_generate_answer)
+
+        if ai_messages_data := await self.button_search_and_action_any_collections(
+                user_id=user_id, action='get', button_name='ai_messages_data', updates_data=True):
+
+            ai_messages_data.pop(-1)  # выкидываем последнюю генерацию
+            task_to_generate_ai = ai_messages_data.pop(-1).get('content')  # достаём задание - prompt
+
+            ai_answer = await self.ai.some_question(prompt=task_to_generate_ai, messages_data=ai_messages_data)
+        else:
+            ai_answer = DEFAULT_FEED_ANSWER
+
+        if ai_answer != DEFAULT_FEED_ANSWER:
+            reply_text = reply_text + ai_answer + ':ai:some_question'
+        else:
+            self.children_buttons = []
+            reply_text = self.reply_text
+
+        await self.bot.delete_message(chat_id=user_id, message_id=wait_msg.message_id)
+
+        return reply_text, self.next_state
+
+
+class MessageOnceForSubmitForRevisionTaskResponseManuallyButton(BaseMessage):
+    def _set_state_or_key(self) -> str:
+        return 'FSMMainMenuStates:submit_for_revision_task_response_manually'
+
+    def _set_reply_text(self) -> str:
+        return FACE_BOT + 'Извините, произошла ошибка, попробуйте немного позже'
+
+    def _set_next_state(self) -> str:
+        return 'reset_state'
+
+    def _set_children(self) -> list:
+        return [RegenerateAIResponse(new=False),
+                SubmitForRevisionTaskResponseManually(new=False),
+                CreateNewTaskForResponseManually(new=False)]
+
+    async def _set_answer_logic(self, update, state) -> tuple[str | tuple, str | None]:
+        # reply_text = 'Я сгенерировал текст:\n\n'
+        reply_text = self.default_i_generate_text
+        user_id = update.from_user.id
+        task_to_revision_regenerate_ai = update.text.strip()
+
+        ai_messages_data = await self.button_search_and_action_any_collections(
+            user_id=user_id, action='get', button_name='ai_messages_data', updates_data=True)
+
+        wait_msg = await self.bot.send_message(chat_id=user_id, text=self.default_generate_answer)
+
+        ai_answer = await self.ai.some_question(prompt=task_to_revision_regenerate_ai, messages_data=ai_messages_data)
+
+        if ai_answer != DEFAULT_FEED_ANSWER:
+            reply_text = reply_text + ai_answer + ':ai:some_question'
+
+        else:
+            self.children_buttons = []
+            reply_text = self.reply_text
+
+        await self.bot.delete_message(chat_id=user_id, message_id=wait_msg.message_id)
+
+        return reply_text, self.next_state
+
+
+class SubmitForRevisionTaskResponseManually(BaseButton):
+    def _set_name(self) -> str:
+        return '🗒 \t  Отправить на доработку'
+
+    def _set_reply_text(self) -> str:
+        return FACE_BOT + ' Напишите, что именно нужно доработать?' \
+                          '\n\n<b>Пример:</b> Укажи больше информации о предназначении куртки.'
+
+    def _set_next_state(self) -> str:
+        return FSMMainMenuStates.submit_for_revision_task_response_manually
+
+    def _set_messages(self) -> dict:
+        message = MessageOnceForSubmitForRevisionTaskResponseManuallyButton(parent_name=self.class_name)
+        return {message.state_or_key: message}
+
+
+class CreateNewTaskForResponseManually(BaseButton):
+    def _set_name(self) -> str:
+        return '📝 \t Новое задание'
+
+    async def _set_answer_logic(self, update, state) -> tuple[str | tuple, str | None]:
+        logic_button = CreateResponseManually(new=False)
+        return logic_button.reply_text, logic_button.next_state
+
+
 class MessageOnceForCreateResponseManuallyButton(BaseMessage):
 
     def _set_state_or_key(self) -> str:
@@ -80,17 +184,32 @@ class MessageOnceForCreateResponseManuallyButton(BaseMessage):
     def _set_next_state(self) -> str:
         return 'reset_state'
 
+    def _set_children(self) -> list:
+        return [RegenerateAIResponse(parent_name=self.class_name, parent_button=self),
+                SubmitForRevisionTaskResponseManually(parent_name=self.class_name, parent_button=self),
+                CreateNewTaskForResponseManually(parent_name=self.class_name, parent_button=self)]
+
     async def _set_answer_logic(self, update, state) -> tuple[str | tuple, str | None]:
-        reply_text = 'Я сгенерировал текст:\n\n'
-        wait_msg = await self.bot.send_message(chat_id=update.from_user.id,
-                                               text=self.default_generate_answer)
+        # reply_text = 'Я сгенерировал текст:\n\n'
+        reply_text = self.default_i_generate_text
+        user_id = update.from_user.id
+        task_to_generate_ai = update.text.strip()
+        wait_msg = await self.bot.send_message(chat_id=user_id, text=self.default_generate_answer)
 
-        ai_answer = await self.ai.some_question(prompt=update.text.strip())
+        ai_messages_data = await self.button_search_and_action_any_collections(
+            user_id=user_id, action='add', button_name='ai_messages_data',
+            instance_button=list(), updates_data=True)
 
-        reply_text = reply_text + ai_answer + ':ai:some_question' \
-            if ai_answer != DEFAULT_FEED_ANSWER else self.reply_text
+        ai_answer = await self.ai.some_question(prompt=task_to_generate_ai, messages_data=ai_messages_data)
 
-        await self.bot.delete_message(chat_id=update.from_user.id, message_id=wait_msg.message_id)
+        if ai_answer != DEFAULT_FEED_ANSWER:
+            reply_text = reply_text + ai_answer + ':ai:some_question'
+
+        else:
+            self.children_buttons = []
+            reply_text = self.reply_text
+
+        await self.bot.delete_message(chat_id=user_id, message_id=wait_msg.message_id)
 
         return reply_text, self.next_state
 

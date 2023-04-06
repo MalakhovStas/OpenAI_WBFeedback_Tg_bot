@@ -5,6 +5,7 @@ from aiogram.dispatcher.filters.state import StatesGroup, State
 class FSMMainMenuStates(StatesGroup):
     main_menu = State()
     create_response_manually = State()
+    submit_for_revision_task_response_manually = State()
 
 
 class FSMPersonalCabinetStates(StatesGroup):

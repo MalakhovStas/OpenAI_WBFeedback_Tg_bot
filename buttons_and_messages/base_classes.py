@@ -35,6 +35,7 @@ class Base(ABC):
     default_download_information = FACE_BOT + '🌐 {about}\nнемного подождите пожалуйста ...'
     default_choice_feedback = FACE_BOT + '<b>Выберите отзыв:</b>'
     default_not_feeds_in_supplier = FACE_BOT + '<b>В этом магазине отзывов пока нет</b>'
+    default_i_generate_text = FACE_BOT + 'Я сгенерировал текст:\n\n'
 
 
     # general_collection = {'general_messages': {},
