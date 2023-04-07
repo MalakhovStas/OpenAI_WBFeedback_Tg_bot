@@ -4,6 +4,7 @@ from utils.states import FSMMainMenuStates, FSMPersonalCabinetStates
 from .base_classes import BaseButton, BaseMessage, Utils
 from aiogram.types import CallbackQuery
 from aiogram.dispatcher import FSMContext
+from .stars_buttons import UnansweredFeedbackManagement
 
 
 class PersonalCabinet(BaseButton):
@@ -19,6 +20,7 @@ class PersonalCabinet(BaseButton):
 
     def _set_children(self) -> list:
         return [WildberriesCabinet(parent_name=self.class_name),
+                UnansweredFeedbackManagement(parent_name=self.class_name),
                 SetUpNotificationTimes(parent_name=self.class_name),
                 SignatureToTheAnswer(parent_name=self.class_name)]
 
@@ -47,6 +49,7 @@ class AnswerManagement(BaseButton, Utils):
     #
     #     wb_user = self.dbase.wb_user_get_or_none(user_id=user_id)
     #     feedbacks = dict(list(wb_user.unanswered_feedbacks.items())[:NUM_FEED_BUTTONS])
+    #
     #     buttons = await self.utils_get_or_create_buttons(collection=feedbacks,
     #                                                      class_type='feedback',
     #                                                      update=update,
@@ -273,7 +276,8 @@ class MainMenu(BaseButton):
 
     def _set_children(self) -> list:
         return [PersonalCabinet(parent_name=self.class_name),
-                AnswerManagement(parent_name=self.class_name),
+                # AnswerManagement(parent_name=self.class_name),
+                # UnansweredFeedbackManagement(parent_name=self.class_name),
                 CreateResponseManually(parent_name=self.class_name),
                 AboutBot(parent_name=self.class_name),
                 SupportButton(parent_name=self.class_name)]

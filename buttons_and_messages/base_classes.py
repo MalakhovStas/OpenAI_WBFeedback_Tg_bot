@@ -31,10 +31,10 @@ class Base(ABC):
     default_bad_text = 'Нет данных'
     default_service_in_dev = '🛠 Сервис в разработке, в ближайшее время функционал будет доступен'
     default_incorrect_data_input_text = FACE_BOT + 'Введены некорректные данные - {text}'
-    default_generate_answer = FACE_BOT + '✍ Пишу текст..., немного подождите пожалуйста ...'
+    default_generate_answer = FACE_BOT + '✍ Пишу текст... , немного подождите пожалуйста ...'
     default_download_information = FACE_BOT + '🌐 {about}\nнемного подождите пожалуйста ...'
     default_choice_feedback = FACE_BOT + '<b>Выберите отзыв:</b>'
-    default_not_feeds_in_supplier = FACE_BOT + '<b>В этом магазине отзывов пока нет</b>'
+    default_not_feeds_in_supplier = FACE_BOT + '<b>Отзывов пока нет</b>'
     default_i_generate_text = FACE_BOT + 'Я сгенерировал текст:\n\n'
 
 
@@ -885,16 +885,19 @@ class Utils(Base):
         button = None
         reply_text = cls.default_choice_feedback
         user_id = user_id if user_id else update.from_user.id
+        wb_user = await cls.dbase.wb_user_get_or_none(user_id=user_id)
 
         for object_id, object_data in data.items():
             cls.logger.debug(f'Utils: create_button: {object_id}, supplier: {supplier_name_key}')
 
             if object_id.startswith('Feedback'):
                 dt_tm = await cls.m_utils.reversed_date_time_feedback(object_data)
-
                 answer = await cls.m_utils.set_reply_text_to_feed(feed=object_data, new_object=True)
 
+                shop_name = wb_user.suppliers.get(object_data.get("supplier")).get('general')
+
                 reply_text = cls.default_choice_feedback if class_type == 'Supplier' else \
+                    f'<b>Магазин: "{shop_name}"</b> режим {"ID" if object_data.get("supplier").startswith("SupplierParsing") else "API"} \n\n' \
                     f'<b>Товар:</b> {object_data.get("productName")}\n' \
                     f'<b>Дата:</b> {dt_tm}\n' \
                     f'<b>Оценка:</b> {object_data.get("productValuation")}\n' \
@@ -912,6 +915,7 @@ class Utils(Base):
                 user_id=user_id, action='get',
                 button_name=pb_name if class_type == 'Supplier' else supplier_name_key
             )
+
 
             button = type(object_id, (BaseButton,), {})(
                 name=object_data.get('button_name'),
@@ -976,7 +980,7 @@ class Utils(Base):
                 """Если нет создаем новый объект"""
                 button = await cls.create_button_dynamically(
                     data={object_id: object_data}, class_type=class_type, update=update, user_id=user_id,
-                    supplier_name_key=supplier_name_key
+                    supplier_name_key=supplier_name_key if supplier_name_key else object_data.get('supplier')
                 )
 
             __buttons.append(button)

@@ -193,6 +193,11 @@ class AnswerLogicManager:
                  not [btn for btn in buttons if btn.class_name != 'GoToBack']):
             add_ulf = True
 
+        # print('parent_button', parent_button)
+        if parent_button and hasattr(parent_button, 'class_name') \
+                and parent_button.class_name == 'UnansweredFeedbackManagement':
+            add_ulf = False
+
         if not_keyboard:
             keyboard = None
         else:

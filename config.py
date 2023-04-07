@@ -119,7 +119,7 @@ NUM_FEEDS_ON_SUPPLIER_BUTTON = '99+'
 
 """ Настройка планировщика задач apscheduler, время между запуском 
     AutoUpdateFeedbackManager -> finding_unanswered_feedbacks - интервал обновления отзывов """
-AUFM_INTERVAL_SECONDS = 2*60*60  # каждые 2 часа
+AUFM_INTERVAL_SECONDS = 60*60  # каждый час
 # AUFM_INTERVAL_SECONDS = 60
 
 """ Только отзывы этой даты попадут в автоматические уведомления формат: 2023 или 2023-03 или 2023-03-18"""
