@@ -141,8 +141,39 @@ class DBManager:
         else:
             result = f'zero_balance: {zero_balance}'
 
-        self.logger.debug(self.sign + f'func update_user_balance -> user_id: {user_id} | {result}')
+        self.logger.debug(self.sign + f'{user_id=} | {result=} | new {user.balance=}')
         return True, user.balance, user.username
+
+    async def update_user_balance_requests(self, user_id: str | int,
+                                           up_balance: str | int | None = None,
+                                           down_balance: str | int | None = None,
+                                           zero_balance: bool = False) -> tuple | bool:
+        user = self.tables.users.get_or_none(user_id=str(user_id))
+        if not user:
+            return False
+
+        if up_balance and str(up_balance).isdigit():
+            user.balance_requests += int(up_balance)
+        elif down_balance and str(down_balance).isdigit():
+            if user.balance_requests != 0:
+                user.balance_requests -= int(down_balance)
+            else:
+                return False, 'not update user balance_requests=0'
+        elif zero_balance:
+            user.balance_requests = 0
+        else:
+            return False, 'bad data'
+        user.save()
+
+        if up_balance:
+            result = f'up_balance: {up_balance}'
+        elif down_balance:
+            result = f'down_balance: {down_balance}'
+        else:
+            result = f'zero_balance: {zero_balance}'
+
+        self.logger.debug(self.sign + f'{user_id=} | {result=} | new {user.balance_requests=}')
+        return True, user.balance_requests, user.username
 
     async def update_user_access(self, user_id: str | int, block: bool = False) -> bool | tuple:
         user = self.tables.users.get_or_none(user_id=user_id)

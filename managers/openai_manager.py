@@ -4,7 +4,8 @@ from typing import Sequence
 import openai
 
 from ai_settings import INVITATION, MODEL, TEMPERATURE, MAX_TOKENS, TOP_P, PRESENCE_PENALTY, FREQUENCY_PENALTY, TIMEOUT
-from config import OpenAI_TOKEN, OpenAI_ORGANIZATION, DEFAULT_FEED_ANSWER
+from config import OpenAI_TOKEN, OpenAI_ORGANIZATION, DEFAULT_FEED_ANSWER, DEFAULT_NOT_ENOUGH_BALANCE
+from aiogram.types import CallbackQuery, Message
 
 
 class OpenAIManager:
@@ -17,10 +18,12 @@ class OpenAIManager:
             cls.__instance = super().__new__(cls)
         return cls.__instance
 
-    def __init__(self, logger):
+    def __init__(self, dbase, bot, logger):
         self.openai = openai
         self.openai.organization = OpenAI_ORGANIZATION
         self.openai.api_key = OpenAI_TOKEN
+        self.dbase = dbase
+        self.bot = bot
         self.logger = logger
         self.sign = self.__class__.__name__+': '
 
@@ -31,8 +34,24 @@ class OpenAIManager:
             text += '.'
         return f'{INVITATION} {text}'
 
-    async def answer(self, prompt: str, correct: bool = True) -> str:
+    async def check_user_balance_requests(self, user_id, update: CallbackQuery | Message | None = None):
+        user = self.dbase.tables.users.get_or_none(user_id=str(user_id))
+        if user and user.balance_requests > 0:
+            return True
+        # if isinstance(update, CallbackQuery):
+        #     ...
+            # await self.bot.answer_callback_query(callback_query_id=update.id, show_alert=False,
+            #                                      text=DEFAULT_NOT_ENOUGH_BALANCE)
+        self.logger.warning(self.sign + f"{user_id=} | {user.username=} | {user.balance_requests=} | "
+                                        f"answer: {DEFAULT_NOT_ENOUGH_BALANCE[:100]}...")
+        return False
+
+    async def answer_davinchi(self, prompt: str, correct: bool = True, user_id: int | str = None,
+                              update: CallbackQuery | Message | None = None) -> str:
         """ Запрос к ChatGPT модель: text-davinci-003 """
+        if not await self.check_user_balance_requests(user_id=user_id, update=update):
+            return DEFAULT_NOT_ENOUGH_BALANCE
+
         prompt = await self.prompt_correct(text=prompt) if correct else prompt
         self.logger.info(self.sign + f"question: {prompt[:100]}...")
         try:
@@ -50,6 +69,7 @@ class OpenAIManager:
             # print(response)
             if response and isinstance(response.get('choices'), Sequence):
                 answer = response['choices'][0]['text'].strip('\n')
+                await self.dbase.update_user_balance_requests(user_id=user_id, down_balance=1)
             else:
                 answer = self.__default_bad_answer
 
@@ -64,8 +84,11 @@ class OpenAIManager:
         self.logger.info(self.sign + f"answer: {text[:100]}...")
         return answer
 
-    async def answer_gpt_3_5_turbo(self, prompt: str, correct: bool = True, messages_data: list | None = None) -> str:
+    async def answer_gpt_3_5_turbo(self, prompt: str, correct: bool = True, messages_data: list | None = None,
+                                   user_id: int | str = None, update: CallbackQuery | Message | None = None) -> str:
         """ Запрос к ChatGPT модель: gpt-3.5-turbo"""
+        if not await self.check_user_balance_requests(user_id=user_id, update=update):
+            return DEFAULT_NOT_ENOUGH_BALANCE
 
         prompt = await self.prompt_correct(text=prompt) if correct else prompt
         self.logger.info(self.sign + f"question: {prompt[:100]}...")
@@ -84,11 +107,10 @@ class OpenAIManager:
             if response and isinstance(response.get('choices'), Sequence):
                 answer = response['choices'][0]['message']['content'].strip('\n')
                 messages_data.append({"role": "assistant", "content": answer})
-
+                await self.dbase.update_user_balance_requests(user_id=user_id, down_balance=1)
             else:
                 messages_data.pop(-1)
                 answer = self.__default_bad_answer
-
 
         except Exception as exception:
             # TODO Разобраться с циркулярным импортом
@@ -117,29 +139,34 @@ class OpenAIManager:
     async def _check_type_str(cls, *args) -> bool:
         return all((isinstance(arg, str) for arg in args))
 
-    async def reply_feedback(self, feedback: str, feed_name: str | None = None) -> tuple | str:
+    async def reply_feedback(self, feedback: str, feed_name: str | None = None,
+                             user_id: int | str = None, update: CallbackQuery | Message | None = None) -> tuple | str:
         answer = None
         if await self._check_type_str(feedback):
             if MODEL == 'gpt-3.5-turbo':
-                answer = await self.answer_gpt_3_5_turbo(prompt=feedback)
+                answer = await self.answer_gpt_3_5_turbo(prompt=feedback, user_id=user_id, update=update)
             else:
-                answer = await self.answer(prompt=feedback)
+                answer = await self.answer_davinchi(prompt=feedback, user_id=user_id, update=update)
 
         if feed_name:
             return feed_name, answer
         else:
             return answer
 
-    async def some_question(self, prompt: str, messages_data: list | None = None) -> str:
+    async def some_question(self, prompt: str, messages_data: list | None = None,  user_id: int | str = None,
+                            update: CallbackQuery | Message | None = None) -> str:
+
         if await self._check_type_str(prompt):
             if MODEL == 'gpt-3.5-turbo':
-                answer = await self.answer_gpt_3_5_turbo(prompt=prompt, correct=False, messages_data=messages_data)
+                answer = await self.answer_gpt_3_5_turbo(prompt=prompt, correct=False, messages_data=messages_data,
+                                                         user_id=user_id, update=update)
             else:
-                answer = await self.answer(prompt=prompt, correct=False)
+                answer = await self.answer_davinchi(prompt=prompt, correct=False, user_id=user_id, update=update)
             return answer
 
-    async def automatic_generate_answer_for_many_feeds(self, feedbacks: dict) -> dict:
-        data = [self.reply_feedback(feedback=feed_data.get('text'), feed_name=feed_name)
+    async def automatic_generate_answer_for_many_feeds(self, feedbacks: dict, user_id: int | str = None) -> dict:
+        # TODO настроить проверку баланса
+        data = [self.reply_feedback(feedback=feed_data.get('text'), feed_name=feed_name, user_id=user_id)
                 for feed_name, feed_data in feedbacks.items()]
 
         list_result = await asyncio.gather(*data)

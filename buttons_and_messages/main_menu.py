@@ -2,7 +2,7 @@ from buttons_and_messages.personal_cabinet import WildberriesCabinet, SetUpNotif
 from config import SUPPORT, FACE_BOT, NUM_FEED_BUTTONS, DEFAULT_FEED_ANSWER
 from utils.states import FSMMainMenuStates, FSMPersonalCabinetStates
 from .base_classes import BaseButton, BaseMessage, Utils
-from aiogram.types import CallbackQuery
+from aiogram.types import CallbackQuery, Message
 from aiogram.dispatcher import FSMContext
 from .stars_buttons import UnansweredFeedbackManagement
 
@@ -84,7 +84,7 @@ class RegenerateAIResponse(BaseButton):
         return [self, SubmitForRevisionTaskResponseManually(new=False),
                 CreateNewTaskForResponseManually(new=False)]
 
-    async def _set_answer_logic(self, update, state) -> tuple[str | tuple, str | None]:
+    async def _set_answer_logic(self, update: CallbackQuery, state: FSMContext) -> tuple[str | tuple, str | None]:
         user_id = update.from_user.id
         # reply_text = 'Я сгенерировал текст:\n\n'
         reply_text = self.default_i_generate_text
@@ -96,7 +96,8 @@ class RegenerateAIResponse(BaseButton):
             ai_messages_data.pop(-1)  # выкидываем последнюю генерацию
             task_to_generate_ai = ai_messages_data.pop(-1).get('content')  # достаём задание - prompt
 
-            ai_answer = await self.ai.some_question(prompt=task_to_generate_ai, messages_data=ai_messages_data)
+            ai_answer = await self.ai.some_question(prompt=task_to_generate_ai, messages_data=ai_messages_data,
+                                                    user_id=user_id, update=update)
         else:
             ai_answer = DEFAULT_FEED_ANSWER
 
@@ -126,7 +127,7 @@ class MessageOnceForSubmitForRevisionTaskResponseManuallyButton(BaseMessage):
                 SubmitForRevisionTaskResponseManually(new=False),
                 CreateNewTaskForResponseManually(new=False)]
 
-    async def _set_answer_logic(self, update, state) -> tuple[str | tuple, str | None]:
+    async def _set_answer_logic(self, update: Message, state: FSMContext) -> tuple[str | tuple, str | None]:
         # reply_text = 'Я сгенерировал текст:\n\n'
         reply_text = self.default_i_generate_text
         user_id = update.from_user.id
@@ -137,7 +138,8 @@ class MessageOnceForSubmitForRevisionTaskResponseManuallyButton(BaseMessage):
 
         wait_msg = await self.bot.send_message(chat_id=user_id, text=self.default_generate_answer)
 
-        ai_answer = await self.ai.some_question(prompt=task_to_revision_regenerate_ai, messages_data=ai_messages_data)
+        ai_answer = await self.ai.some_question(prompt=task_to_revision_regenerate_ai, messages_data=ai_messages_data,
+                                                user_id=user_id, update=update)
 
         if ai_answer != DEFAULT_FEED_ANSWER:
             reply_text = reply_text + ai_answer + ':ai:some_question'
@@ -192,7 +194,7 @@ class MessageOnceForCreateResponseManuallyButton(BaseMessage):
                 SubmitForRevisionTaskResponseManually(parent_name=self.class_name, parent_button=self),
                 CreateNewTaskForResponseManually(parent_name=self.class_name, parent_button=self)]
 
-    async def _set_answer_logic(self, update, state) -> tuple[str | tuple, str | None]:
+    async def _set_answer_logic(self, update: Message, state: FSMContext) -> tuple[str | tuple, str | None]:
         # reply_text = 'Я сгенерировал текст:\n\n'
         reply_text = self.default_i_generate_text
         user_id = update.from_user.id
@@ -203,7 +205,8 @@ class MessageOnceForCreateResponseManuallyButton(BaseMessage):
             user_id=user_id, action='add', button_name='ai_messages_data',
             instance_button=list(), updates_data=True)
 
-        ai_answer = await self.ai.some_question(prompt=task_to_generate_ai, messages_data=ai_messages_data)
+        ai_answer = await self.ai.some_question(prompt=task_to_generate_ai, messages_data=ai_messages_data,
+                                                user_id=user_id, update=update)
 
         if ai_answer != DEFAULT_FEED_ANSWER:
             reply_text = reply_text + ai_answer + ':ai:some_question'
@@ -263,6 +266,37 @@ class SupportButton(BaseButton):
         return SUPPORT
 
 
+class TopUpBalance(BaseButton):
+    def _set_name(self) -> str:
+        return 'Пополнить'
+
+    def _set_reply_text(self) -> str:
+        return f'Ошибка при генерации ссылки на оплату'
+
+    async def _set_answer_logic(self, update, state):
+        # reply_text = f'Ссылка на оплату -> user: {update.from_user.id}'
+        reply_text = self.default_service_in_dev
+        return reply_text, self.next_state
+
+
+class CallGetBalance(BaseButton):
+    def _set_name(self) -> str:
+        return '💰 Баланс'
+
+    def _set_reply_text(self) -> str:
+        return f'\n\n<b>Ваш баланс:</b>' + self.default_bad_text
+
+    def _set_children(self) -> list:
+        return [TopUpBalance(parent_name=self.class_name)]
+
+    async def _set_answer_logic(self, update, state):
+        user = self.dbase.tables.users.get_or_none(user_id=update.from_user.id)
+        reply_text = self.reply_text
+        if user:
+            reply_text = reply_text.rstrip(self.default_bad_text) + f'\t{user.balance_requests}'
+        return reply_text, self.next_state
+
+
 class MainMenu(BaseButton):
 
     def _set_name(self) -> str:
@@ -279,5 +313,6 @@ class MainMenu(BaseButton):
                 # AnswerManagement(parent_name=self.class_name),
                 # UnansweredFeedbackManagement(parent_name=self.class_name),
                 CreateResponseManually(parent_name=self.class_name),
+                CallGetBalance(parent_name=self.class_name),
                 AboutBot(parent_name=self.class_name),
                 SupportButton(parent_name=self.class_name)]

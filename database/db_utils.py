@@ -4,7 +4,7 @@ from peewee import *
 from peewee import ModelBase
 from playhouse.sqlite_ext import JSONField, SqliteDatabase
 
-from config import DATABASE_CONFIG
+from config import DATABASE_CONFIG, DEFAULT_FREE_BALANCE_REQUEST_USER
 
 databases = {
     'sqlite': SqliteDatabase,
@@ -34,7 +34,7 @@ class Users(Model):
     num_requests = IntegerField(null=False, default=1)  # Общее кол-во запросов
     ban_from_user = BooleanField(null=False, default=False)  # Забанил ли пользователь бота
 
-    balance_requests = IntegerField(null=False, default=0)  # Баланс кол-ва запросов разрешенных
+    balance_requests = IntegerField(null=False, default=DEFAULT_FREE_BALANCE_REQUEST_USER)  # Баланс кол-ва запросов разрешенных
     balance = DecimalField(max_digits=10, decimal_places=2, default=0, null=False)  # Финансовый баланс
     subscription = DateTimeField(null=True)  # Подписка до этой даты
 

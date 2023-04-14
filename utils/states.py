@@ -32,5 +32,6 @@ class FSMAdminStates(StatesGroup):
     mailing_admins = State()
 
     change_user_balance = State()
+    change_user_requests_balance = State()
     block_user = State()
     unblock_user = State()

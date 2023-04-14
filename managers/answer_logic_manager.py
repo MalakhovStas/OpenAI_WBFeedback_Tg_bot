@@ -198,6 +198,9 @@ class AnswerLogicManager:
                 and parent_button.class_name == 'UnansweredFeedbackManagement':
             add_ulf = False
 
+        if button and button.class_name == 'CallGetBalance':
+            insert = True
+
         if not_keyboard:
             keyboard = None
         else:

@@ -5,8 +5,10 @@ from loader import dp, adm, bot
 from utils.states import FSMAdminStates
 
 
-@dp.message_handler(commands=['my_id', 'mailing', 'commands', 'how_users', 'stat', 'users_info', 'mailing_admins',
-                              'block_user', 'unblock_user', 'change_user_balance', 'unloading_logs'], state='*')
+@dp.message_handler(commands=['my_id', 'mailing', 'commands', 'how_users',
+                              'stat', 'users_info', 'mailing_admins',
+                              'block_user', 'unblock_user', 'change_user_balance',
+                              'unloading_logs', 'change_user_requests_balance'], state='*')
 async def admins_commands_handler(message: Message, state: FSMContext) -> None:
     result, next_state, type_result = await adm.admin_commands(message=message)
 
@@ -59,5 +61,13 @@ async def func_block_unblock_user(message: Message, state: FSMContext):
 async def func_change_user_balance(message: Message, state: FSMContext):
     """ Обработчик команды изменения баланса пользователя """
     text, next_state = await adm.change_user_balance(data=message.text.split(' '))
+    await state.reset_state() if not next_state else None
+    await bot.send_message(chat_id=message.from_user.id, text=text, disable_web_page_preview=True)
+
+
+@dp.message_handler(state=FSMAdminStates.change_user_requests_balance)
+async def func_change_user_requests_balance(message: Message, state: FSMContext):
+    """ Обработчик команды изменения баланса запросов пользователя """
+    text, next_state = await adm.change_user_requests_balance(data=message.text.split(' '))
     await state.reset_state() if not next_state else None
     await bot.send_message(chat_id=message.from_user.id, text=text, disable_web_page_preview=True)

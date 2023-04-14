@@ -321,7 +321,8 @@ class WBAPIManager:
                 )
 
         if MODE_GENERATE_ANSWER == 'automatic':
-            result_feedbacks = await self.ai.automatic_generate_answer_for_many_feeds(feedbacks=result_feedbacks)
+            result_feedbacks = await self.ai.automatic_generate_answer_for_many_feeds(feedbacks=result_feedbacks,
+                                                                                      user_id=user_id)
         else:
             result_feedbacks = await self.m_utils.set_hint_in_answer_for_many_feeds(feedbacks=result_feedbacks)
 

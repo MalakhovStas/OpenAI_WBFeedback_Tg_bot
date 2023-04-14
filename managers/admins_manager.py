@@ -59,7 +59,8 @@ class AdminsManager:
                    f'<b>/users_info</b> - выгрузка детальной информации о пользователях\n' \
                    f'<b>/block_user</b> - заблокировать пользователя\n' \
                    f'<b>/unblock_user</b> - разблокировать пользователя\n' \
-                   f'<b>/change_user_balance</b> - изменить баланс пользователя\n' \
+                   f'<b>/change_user_requests_balance</b> - изменить баланс запросов пользователя\n'
+                   # f'<b>/change_user_balance</b> - изменить баланс пользователя\n' \
                    # f'<b>/unloading_logs</b> - выгрузка логов'
 
         elif command == '/my_id':
@@ -80,8 +81,12 @@ class AdminsManager:
         elif command == '/change_user_balance':
             text = '<b>Введите id пользователя и через пробел +сумму на которую хотите увеличить его баланс,' \
                    ' или -сумму на которую хотите уменьшить, для обнуления баланса введите 0</b>'
-
             next_state = FSMAdminStates.change_user_balance
+
+        elif command == '/change_user_requests_balance':
+            text = '<b>Введите id пользователя и через пробел +сумму на которую хотите увеличить его баланс,' \
+               ' или -сумму на которую хотите уменьшить, для обнуления баланса введите 0</b>'
+            next_state = FSMAdminStates.change_user_requests_balance
 
         elif command == '/unloading_logs':
             await self.bot.send_document(chat_id=message.from_user.id, document=open(PATH_FILE_DEBUG_LOGS, 'rb'))
@@ -276,6 +281,33 @@ class AdminsManager:
                     text = f'Баланс пользователя\n<b>id:</b> {user_id}\n' \
                            f'{"<b>Контакт:</b> https://t.me/" + result[2] if result[2] else ""}\n' \
                            f'ОБНОВЛЕН, новый баланс: <b>{result[1]}</b>'
+                    next_state = None
+            else:
+                text = f'Пользователь: <b>{user_id}</b> в базе не зарегистрирован'
+        else:
+            text = 'Введены некорректные данные'
+
+        return text, next_state
+
+    async def change_user_requests_balance(self, data: str) -> tuple:
+        text, next_state = None, 'not_reset'
+
+        if len(data) == 2 and data[0].isdigit() and data[1].startswith(('+', '-', '0')):
+            user_id = data[0]
+            up_balance = data[1][1:] if data[1].startswith('+') else None
+            down_balance = data[1][1:] if data[1].startswith('-') else None
+            zero_balance = True if data[1] == '0' else None
+
+            if result := await self.dbase.update_user_balance_requests(
+                    user_id=user_id, up_balance=up_balance, down_balance=down_balance, zero_balance=zero_balance):
+
+                if not result[0] and result[1] == 'bad data':
+                    text = f'Ошибка обновления баланса запросов, возможно введены некорректные данные, ' \
+                           f'баланс запросов пользователя: <b>{user_id}</b> не изменён'
+                else:
+                    text = f'Баланс запросов пользователя\n<b>id:</b> {user_id}\n' \
+                           f'{"<b>Контакт:</b> https://t.me/" + result[2] if result[2] else ""}\n' \
+                           f'ОБНОВЛЕН, новый баланс запросов: <b>{result[1]}</b>'
                     next_state = None
             else:
                 text = f'Пользователь: <b>{user_id}</b> в базе не зарегистрирован'

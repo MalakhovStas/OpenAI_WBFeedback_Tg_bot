@@ -4,7 +4,7 @@ from datetime import datetime
 
 from aiogram.types import Message, CallbackQuery
 
-from config import NUM_FEED_BUTTONS, MODE_GENERATE_ANSWER, WB_TAKE
+from config import NUM_FEED_BUTTONS, MODE_GENERATE_ANSWER, WB_TAKE, FACE_BOT
 from utils import misc_utils
 
 
@@ -41,8 +41,8 @@ class WBParsingManager:
 
         wait_msg = await self.bot.send_message(
             chat_id=user_id,
-            text=f'🌐 Загружаю отзывы  магазина:'
-                 f'\n<b>{supplier_name}</b>\nнемного подождите пожалуйста...'
+            text=FACE_BOT + f'🌐 Загружаю отзывы  магазина:'
+                            f'\n<b>{supplier_name}</b>\nнемного подождите пожалуйста...'
         ) if waiting_msgs else None
 
         products_root_id = await self.parse_get_supplier_products(supplier_id)
@@ -111,7 +111,7 @@ class WBParsingManager:
             for product in data.get('data')['products']:
                 products_root_id.update({product.get('root'): product.get('name')})
 
-        except KeyError as exc:
+        except (KeyError, TypeError) as exc:
             pass
 
         else:
@@ -154,6 +154,7 @@ class WBParsingManager:
 
                 feedbacks = response.get('feedbacks', list())
 
+            feedbacks = list() if not feedbacks else feedbacks
             self.logger.debug(self.sign + f' -> {product_name=} | {len(feedbacks)=}')
 
             for step, feedback in enumerate(feedbacks, 1):
@@ -178,7 +179,8 @@ class WBParsingManager:
                         'createdDate': feedback.get('createdDate')}})
 
         if MODE_GENERATE_ANSWER == 'automatic':
-            result_feeds = await self.ai.automatic_generate_answer_for_many_feeds(feedbacks=result_feeds)
+            result_feeds = await self.ai.automatic_generate_answer_for_many_feeds(feedbacks=result_feeds,
+                                                                                  user_id=user_id)
         else:
             result_feeds = await self.m_utils.set_hint_in_answer_for_many_feeds(feedbacks=result_feeds)
 

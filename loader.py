@@ -35,7 +35,7 @@ dp = Dispatcher(bot=bot, storage=storage)
 rdm = ReloadDumpManager(dbase=dbase, logger=logger)
 
 rm = RequestsManager(logger=logger)
-ai = OpenAIManager(logger=logger)
+ai = OpenAIManager(dbase=dbase, bot=bot, logger=logger)
 adm = AdminsManager(bot=bot, logger=logger, dbase=dbase)
 
 wb_api = WBAPIManager(dbase=dbase, rm=rm, ai=ai, logger=logger)

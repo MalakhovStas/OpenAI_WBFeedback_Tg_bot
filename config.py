@@ -27,9 +27,10 @@ FACE_BOT = '🤖 \t '
 MODE_GENERATE_ANSWER = 'manual'
 
 # """ Ответ по умолчанию, обязательно должен начинаться с символа переноса строки - \n """
-""" Ответ по умолчанию """
+""" Ответы open_ai по умолчанию """
 DEFAULT_FEED_ANSWER = ' \t Cгенерируйте ответ кнопкой\n \t "Сгенерировать ответ"\n\n' \
                       ' \t или введите ответ вручную по кнопке\n \t "Редактировать ответ"'
+DEFAULT_NOT_ENOUGH_BALANCE = 'Ваш лимит запросов исчерпан, пожалуйста пополните баланс'
 
 """ Токен ChatGPT и настройки таймаут для openai """
 OpenAI_TOKEN = os.getenv('OPENAI_API_KEY')
@@ -40,6 +41,10 @@ OpenAI_ORGANIZATION = os.getenv('OPENAI_ORGANIZATION')
 # https://pyqiwip2p.readthedocs.io/ru/latest/Use.html#id3
 QIWI_PRIV_KEY = os.getenv('QIWI_PRIV_KEY')
 LIFETIME = 5
+
+""" PRODAMUS """
+PRODAMUS_PRIV_KEY = os.getenv('PRODAMUS_PRIV_KEY')
+
 
 """ Список администраторов и ссылка на чат поддержки """
 ADMINS = os.getenv('ADMINS').split(', ') if os.getenv('ADMINS') else tuple()
@@ -61,6 +66,8 @@ BOT_POS = 'https://t.me/WBpositionTOP_bot'
 SCHOOL = 'https://marpla.pro/courses'
 
 """ Конфигурация базы данных """
+DEFAULT_FREE_BALANCE_REQUEST_USER = 10
+
 if not os.getenv('PG_DATABASE'):
     # DATABASE_CONFIG = ('sqlite', {'database': 'database/database.db'})
     DATABASE_CONFIG = ('sqlite', {'database': 'database/database.db',

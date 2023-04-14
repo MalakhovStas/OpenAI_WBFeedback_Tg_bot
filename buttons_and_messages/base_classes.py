@@ -6,7 +6,8 @@ from aiogram.dispatcher import FSMContext
 from aiogram.types import Message, CallbackQuery
 from loguru import logger
 
-from config import BOT_NIKNAME, NUM_FEED_BUTTONS, FACE_BOT, NUM_FEEDS_ON_SUPPLIER_BUTTON, DEFAULT_FEED_ANSWER
+from config import BOT_NIKNAME, NUM_FEED_BUTTONS, FACE_BOT, NUM_FEEDS_ON_SUPPLIER_BUTTON, \
+    DEFAULT_FEED_ANSWER, DEFAULT_NOT_ENOUGH_BALANCE
 # from database.db_utils import Tables
 # from managers.db_manager import DBManager
 from managers.async_db_manager import DBManager
@@ -233,6 +234,15 @@ class Base(ABC):
             user_id=user_id,
             update_data={'unanswered_feedbacks': wb_user.unanswered_feedbacks}
         )
+
+    @classmethod
+    async def check_user_balance_requests(cls, update: CallbackQuery, user_id):
+        user = cls.dbase.tables.users.get_or_none(user_id=str(user_id))
+        if user.balance_requests > 0:
+            return True
+        await cls.bot.answer_callback_query(callback_query_id=update.id, show_alert=True,
+                                            text=DEFAULT_NOT_ENOUGH_BALANCE)
+        return False
 
 
 class BaseMessage(Base):
@@ -581,8 +591,8 @@ class GenerateNewResponseToFeedback(BaseButton):
                 await self.bot.delete_message(chat_id=user_id, message_id=update.message.message_id)
                 wait_msg = await self.bot.send_message(chat_id=user_id, text=self.default_generate_answer)
 
-                ai_answer = await self.ai.reply_feedback(feed_button.any_data.get('text'))
-                # ai_answer = await self.ai.some_question(feed_button.any_data.get('text'))
+                ai_answer = await self.ai.reply_feedback(feed_button.any_data.get('text'),
+                                                         user_id=user_id, update=update)
 
                 await self.update_feed_answer(user_id=user_id, button=feed_button, new_answer=ai_answer)
 
