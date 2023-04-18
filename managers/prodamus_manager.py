@@ -51,7 +51,7 @@ class ProdamusManager:
             'urlNotification': self.url_notification,
             'npd_income_type': 'FROM_INDIVIDUAL',
             'link_expired': link_expired,
-            # 'paid_content': 'Благодарим за пользование нашими услугами',
+            'paid_content': 'Оплата прошла успешно, благодарим за пользование нашими услугами',
             '_param_user_id': user_id
         }
 
