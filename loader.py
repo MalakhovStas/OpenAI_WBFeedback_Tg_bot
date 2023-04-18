@@ -19,6 +19,7 @@ from managers.wildberries_api_manager import WBAPIManager
 from managers.auto_update_feedback_manager import AutoUpdateFeedbackManager
 from managers.wildberries_parsing_manager import WBParsingManager
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from managers.prodamus_manager import ProdamusManager
 """ Модуль загрузки основных инструментов приложения """
 
 logger.add(**LOGGER_ERRORS)
@@ -35,6 +36,7 @@ dp = Dispatcher(bot=bot, storage=storage)
 rdm = ReloadDumpManager(dbase=dbase, logger=logger)
 
 rm = RequestsManager(logger=logger)
+pay_sys = ProdamusManager(rm=rm, dbase=dbase, logger=logger)
 ai = OpenAIManager(dbase=dbase, bot=bot, logger=logger)
 adm = AdminsManager(bot=bot, logger=logger, dbase=dbase)
 
@@ -43,7 +45,7 @@ wb_parsing = WBParsingManager(dbase=dbase, bot=bot, rm=rm, ai=ai, logger=logger)
 
 alm = AnswerLogicManager(ai=ai, bot=bot, logger=logger)
 
-Base.ai, Base.bot, Base.wb_api, Base.wb_parsing = ai, bot, wb_api, wb_parsing
+Base.ai, Base.bot, Base.wb_api, Base.wb_parsing, Base.pay_sys = ai, bot, wb_api, wb_parsing, pay_sys
 
 scheduler = AsyncIOScheduler()
 

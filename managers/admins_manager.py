@@ -59,7 +59,8 @@ class AdminsManager:
                    f'<b>/users_info</b> - выгрузка детальной информации о пользователях\n' \
                    f'<b>/block_user</b> - заблокировать пользователя\n' \
                    f'<b>/unblock_user</b> - разблокировать пользователя\n' \
-                   f'<b>/change_user_requests_balance</b> - изменить баланс запросов пользователя\n'
+                   f'<b>/change_user_requests_balance</b> - изменить баланс ответов пользователя\n'\
+                   f'<b>/unload_payment_data_user</b> - выгрузить данные по оплатам пользователя\n'
                    # f'<b>/change_user_balance</b> - изменить баланс пользователя\n' \
                    # f'<b>/unloading_logs</b> - выгрузка логов'
 
@@ -94,6 +95,10 @@ class AdminsManager:
             self.logger.debug(self.sign + f'OK -> send logs files -> user: {message.from_user.id}, '
                                           f'username: {message.from_user.username}')
             text = '<b>Файлы с логами отправлены</b>'
+
+        elif command == '/unload_payment_data_user':
+            text = '<b>Введите id пользователя:</b>'
+            next_state = FSMAdminStates.unload_payment_data_user
 
         else:
             num_users = await self.dbase.count_users(all_users=True)
@@ -315,3 +320,29 @@ class AdminsManager:
             text = 'Введены некорректные данные'
 
         return text, next_state
+
+    async def unload_payments_data_user(self, user_id):
+        result, type_result, next_state = f'Нет данных об оплатах пользователя id: {user_id}', None, None
+        if not str(user_id).isdigit():
+            payments_data = None
+        else:
+            payments_data = await self.dbase.select_all_payment_orders_user(user_id=user_id)
+
+        if payments_data:
+            wb = openpyxl.Workbook()
+            ws = wb.active
+            ws.append((f'Таблица данных по оплатам от пользователя - id: {user_id}',))
+            ws.append(('',))
+
+            ws.append(('order_id', 'payment_status', 'user_id', 'payment_link', 'payment_link_data',
+                       'notification_data', 'payment_system', 'order_id_payment_system'))
+            for payment_order in payments_data:
+                ws.append((str(payment_order.id), str(payment_order.payment_status), str(payment_order.user_id),
+                           str(payment_order.payment_link), str(payment_order.payment_link_data),
+                           str(payment_order.notification_data), str(payment_order.payment_system),
+                           str(payment_order.order_id_payment_system)))
+
+            wb.save('unload_payment_data_user.xlsx')
+            result = open('unload_payment_data_user.xlsx', 'rb')
+            type_result = 'document'
+        return result, type_result, next_state

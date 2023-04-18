@@ -8,7 +8,8 @@ from utils.states import FSMAdminStates
 @dp.message_handler(commands=['my_id', 'mailing', 'commands', 'how_users',
                               'stat', 'users_info', 'mailing_admins',
                               'block_user', 'unblock_user', 'change_user_balance',
-                              'unloading_logs', 'change_user_requests_balance'], state='*')
+                              'unloading_logs', 'change_user_requests_balance',
+                              'unload_payment_data_user'], state='*')
 async def admins_commands_handler(message: Message, state: FSMContext) -> None:
     result, next_state, type_result = await adm.admin_commands(message=message)
 
@@ -71,3 +72,16 @@ async def func_change_user_requests_balance(message: Message, state: FSMContext)
     text, next_state = await adm.change_user_requests_balance(data=message.text.split(' '))
     await state.reset_state() if not next_state else None
     await bot.send_message(chat_id=message.from_user.id, text=text, disable_web_page_preview=True)
+
+
+@dp.message_handler(state=FSMAdminStates.unload_payment_data_user)
+async def func_change_user_requests_balance(message: Message, state: FSMContext):
+    """ Обработчик команды запроса данных об оплатах пользователя """
+    result, type_result, next_state = await adm.unload_payments_data_user(user_id=message.text)
+
+    if type_result == 'document':
+        await bot.send_document(chat_id=message.from_user.id, document=result)
+    else:
+        await bot.send_message(chat_id=message.from_user.id, text=result, disable_web_page_preview=True)
+
+    await state.reset_state() if not next_state else None

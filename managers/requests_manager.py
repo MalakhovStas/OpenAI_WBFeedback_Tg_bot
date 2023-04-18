@@ -31,7 +31,7 @@ class RequestsManager:
 
     async def __call__(self, url, headers: dict | None = None, method: str | None = None,
                        data: dict | list | None = None, list_requests: list | None = None,
-                       add_headers: bool = False, step: int = 1) -> Iterable:
+                       add_headers: bool = False, step: int = 1, use_proxi: bool = True) -> Iterable:
         """ Повторяет запрос/запросы, если сервер ответил error=True """
 
         if not headers:
@@ -44,13 +44,15 @@ class RequestsManager:
             result = await self.aio_request_gather(list_requests=list_requests,
                                                    headers=headers,
                                                    method=method,
-                                                   data=data)
+                                                   data=data,
+                                                   use_proxi=use_proxi)
         else:
             result = await self.aio_request(
                 url=url,
                 headers=headers,
                 method=method,
-                data=data
+                data=data,
+                use_proxi=use_proxi
             )
         if isinstance(result, dict) and result.get('error'):
             step = step + 1
@@ -59,7 +61,8 @@ class RequestsManager:
                                             f'{result.get("error")=} | {str(result)[:100]=}...')
             if step < 3:
                 result = await self.__call__(url=url, headers=headers, method=method, data=data,
-                                             list_requests=list_requests, add_headers=add_headers, step=step)
+                                             list_requests=list_requests, add_headers=add_headers,
+                                             step=step, use_proxi=use_proxi)
         else:
             self.logger.debug(self.sign + f'{step=} func __call__ return {type(result)=} | {len(result)=}')
 
@@ -87,11 +90,13 @@ class RequestsManager:
                                               f'{ip=} | {port=} | {login=} | {password=} | {TYPE_PROXI=}\033[0m')
         return ip, port, login, password
 
-    async def aio_request(self, url, headers, method: str = 'get', data: dict | None = None) -> dict | list:
+    async def aio_request(self, url, headers, method: str = 'get',
+                          data: dict | None = None, use_proxi: bool = True) -> dict | list:
         """ Повторяет запрос, если во время выполнения запроса произошло исключение из Exception"""
         step = 1
         result = dict()
-        ip, port, login, password = await self.get_proxi()
+        ip, port, login, password = await self.get_proxi() if use_proxi else None, None, None, None
+
         data = json.dumps(data) if isinstance(data, (dict, list)) else None
         self.logger.debug(self.sign+f'{step=} func aio_request -> sending request to: '
                                     f'{url=} | {method=} | {str(data)[:100]=}... | {str(headers)[:100]=}...')
@@ -140,12 +145,14 @@ class RequestsManager:
         return result
 
     async def aio_request_gather(
-            self, list_requests, headers, method: str = 'get', data: dict | None = None) -> Iterable:
+            self, list_requests, headers, method: str = 'get',
+            data: dict | None = None, use_proxi: bool = True) -> Iterable:
 
         if method == 'post':
-            task_data = [self.aio_request(url=url, headers=headers, method=method, data=data) for url in list_requests]
+            task_data = [self.aio_request(
+                url=url, headers=headers, method=method, data=data, use_proxi=use_proxi) for url in list_requests]
         else:
-            task_data = [self.aio_request(url=url, headers=headers) for url in list_requests]
+            task_data = [self.aio_request(url=url, headers=headers, use_proxi=use_proxi) for url in list_requests]
         list_result = await asyncio.gather(*task_data)
         await asyncio.sleep(0.1)
         return list_result

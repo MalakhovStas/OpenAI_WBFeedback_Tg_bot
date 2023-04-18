@@ -36,15 +36,24 @@ DEFAULT_NOT_ENOUGH_BALANCE = 'Ваш лимит запросов исчерпа�
 OpenAI_TOKEN = os.getenv('OPENAI_API_KEY')
 OpenAI_ORGANIZATION = os.getenv('OPENAI_ORGANIZATION')
 
-""" QIWI """
+""" Настройки платёжной системы QIWI """
 # https://developer.qiwi.com/ru/payments/#test_data_card
 # https://pyqiwip2p.readthedocs.io/ru/latest/Use.html#id3
 QIWI_PRIV_KEY = os.getenv('QIWI_PRIV_KEY')
 LIFETIME = 5
 
-""" PRODAMUS """
+"""Настройки платёжной системы PRODAMUS """
 PRODAMUS_PRIV_KEY = os.getenv('PRODAMUS_PRIV_KEY')
+LINKTOFORM = 'https://marpla.payform.ru/'
+URL_NOTIFICATION = 'http://5.44.40.79/payment_form_data'
+CUSTOMER_EMAIL = 'super.nvhelp@yandex.ru'
+URL_RETURN = 'https://t.me/Text_Marpla_bot'
 
+PAYMENTS_PACKAGES = {
+    "SmallRequestPackage": {"quantity": 30, "price": 79},
+    "MediumRequestPackage": {"quantity": 100, "price": 199},
+    "BigRequestPackage": {"quantity": 200, "price": 379}
+}
 
 """ Список администраторов и ссылка на чат поддержки """
 ADMINS = os.getenv('ADMINS').split(', ') if os.getenv('ADMINS') else tuple()

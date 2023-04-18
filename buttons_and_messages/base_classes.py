@@ -25,6 +25,8 @@ class Base(ABC):
     bot = None  # Добавляется в loader.py
     wb_api = None  # Добавляется в loader.py
     wb_parsing = None  # Добавляется в loader.py
+    pay_sys = None  # Добавляется в loader.py
+
     m_utils = misc_utils
     logger = logger
     # exception_controller = None  # Добавляется в loader.py
@@ -36,8 +38,8 @@ class Base(ABC):
     default_download_information = FACE_BOT + '🌐 {about}\nнемного подождите пожалуйста ...'
     default_choice_feedback = FACE_BOT + '<b>Выберите отзыв:</b>'
     default_not_feeds_in_supplier = FACE_BOT + '<b>Отзывов пока нет</b>'
-    default_i_generate_text = FACE_BOT + 'Я сгенерировал текст:\n\n'
-
+    default_i_generate_text = FACE_BOT + '<b>Я сгенерировал текст:</b>\n\n'
+    default_text_for_payment_link = FACE_BOT + f'<b>Ваша ссылка на оплату:</b>\n\n'
 
     # general_collection = {'general_messages': {},
     #                       'general_buttons': {},

@@ -70,45 +70,25 @@ class Wildberries(Model):
         db_table = 'wildberries'
 
 
-# class Button(Model):
-#     class_name = CharField(primary_key=True)
-#     user_id = ForeignKeyField(Users, related_name='buttons', to_field=Users.user_id,
-#                               on_delete='CASCADE', on_update='CASCADE', null=True, unique=False)
-#     parent_name = CharField(null=True)
-#     name = CharField(null=True)
-#     callback = CharField(null=True)
-#     reply_text = TextField(null=True)
-#     url = CharField(max_length=511, null=True)
-#     next_state = CharField(null=True)
-#     children = JSONField(null=False, default=list())
-#     messages = JSONField(null=False, default=list())
-#
-#     class Meta:
-#         database = db
-#         order_by = 'class_name'
-#         db_table = 'buttons'
-#
-#
-# class Message(Model):
-#     class_name = CharField(primary_key=True)
-#     parent_name = ForeignKeyField(Button, related_name='messages', to_field=Button.class_name,
-#                                   on_delete='CASCADE', on_update='CASCADE', null=True, unique=False)
-#     state_or_key = CharField(null=True)
-#     reply_text = TextField(null=True)
-#     next_state = CharField(null=True)
-#     children_buttons = JSONField(null=False, default=list())
-#
-#     class Meta:
-#         database = db
-#         order_by = 'class_name'
-#         db_table = 'messages'
+class Payment(Model):
+    payment_status = CharField(default='not paid', null=False)
+    user_id = ForeignKeyField(Users, to_field='user_id', related_name='payments', on_delete='CASCADE')
+    payment_link = CharField(null=True)
+    payment_link_data = JSONField(null=False, default=dict())
+    notification_data = JSONField(null=False, default=dict())
+    payment_system = CharField(default='PRODAMUS', null=False)
+    order_id_payment_system = CharField(null=True)
+
+    class Meta:
+        database = db
+        order_by = 'user_id'
+        db_table = 'payments'
 
 
 class Tables:
     users = Users
     wildberries = Wildberries
-    # buttons = Button
-    # messages = Message
+    payments = Payment
 
     @classmethod
     def all_tables(cls):

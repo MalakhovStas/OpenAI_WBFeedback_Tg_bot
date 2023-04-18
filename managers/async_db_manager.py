@@ -251,51 +251,6 @@ class DBManager:
                                       f'user_id:{update.from_user.id} | '
                                       f'last_request_data: {text_last_request}')
 
-    # """Методы работы с таблицей buttons"""
-    # async def button_get_or_create(self, class_name: str, button_data: dict) -> Tables.buttons | None:
-    #     button, fact_create = self.tables.buttons.get_or_create(class_name=class_name)
-    #     if button and button_data:
-    #         button.user_id = button_data.get('user_id')
-    #         button.parent_name = button_data.get('parent_name')
-    #         button.name = button_data.get('name')
-    #         button.callback = button_data.get('callback')
-    #         button.reply_text = button_data.get('reply_text')
-    #         button.next_state = button_data.get('next_state')
-    #         button.url = button_data.get('url')
-    #         button.save()
-    #     if fact_create:
-    #         self.logger.debug(self.sign + f'-> OK CREATE NEW -> {button.class_name=} | {button_data=}')
-    #     else:
-    #         self.logger.debug(self.sign + f'-> OK UPDATE -> {button.class_name=} | {button_data=}')
-    #     return button
-    #
-    # async def update_button(self, class_name: str, update_data: dict) -> Tables.buttons | None:
-    #     button = self.tables.buttons.get_or_none(class_name=class_name)
-    #     if not self.tables.buttons.update(**update_data).where(self.tables.buttons.class_name == class_name).execute():
-    #         self.logger.warning(self.sign + f'-> ERROR -> NOT UPDATE {class_name=}')
-    #     else:
-    #         self.logger.debug(self.sign + f'-> OK UPDATE -> {button.class_name=} | {update_data=}')
-    #     return button
-    #
-    # async def delete_button(self, class_name: str):
-    #     if self.tables.buttons.delete_by_id(class_name):
-    #         self.logger.debug(self.sign + f'-> OK DELETE -> button.{class_name=}')
-    #
-    # """Методы работы с таблицей messages"""
-    # async def message_get_or_create(self, class_name: str, message_data: dict) -> Tables.messages | None:
-    #     message, fact_create = self.tables.messages.get_or_create(class_name=class_name)
-    #     if message:
-    #         message.state_or_key = message_data.get('state_or_key')
-    #         message.parent_name = message_data.get('parent_name')
-    #         message.reply_text = message_data.get('reply_text')
-    #         message.children_buttons = message_data.get('children_buttons')
-    #         message.save()
-    #         if fact_create:
-    #             self.logger.debug(self.sign + f'create new {message.state_or_key=} | {message_data=}')
-    #         else:
-    #             self.logger.debug(self.sign + f'update {message.state_or_key=} | {message_data=}')
-    #     return message
-
     """ Методы работы с таблицей wildberries"""
     async def select_all_wb_users(self):
         wb_users = list(self.tables.wildberries.select())
@@ -320,7 +275,7 @@ class DBManager:
 
         return wb_user
 
-    """Методы работы с WBManager"""
+    """Методы которые использует WBManager"""
     async def save_phone_number_and_sms_token(self, phone_number, sms_token, user_id):
         if wb_user := self.tables.wildberries.get_or_none(user_id=user_id):
             wb_user.phone = phone_number
@@ -369,3 +324,24 @@ class DBManager:
                 self.logger.info(self.sign + f'save num unanswered_feedbacks: {len(unanswered_feedbacks)} '
                                              f'this all unans_feeds in DB')
             wb_user.save()
+
+    """ Методы работы с таблицей payments"""
+    async def create_new_payment_order(self, user_id):
+        order_num = self.tables.payments.insert(user_id=user_id).execute()
+        self.logger.info(self.sign + f'create new payment_order: {order_num=}')
+        return order_num
+
+    async def update_payment_order(self, order_num, payment_link: str | None = None,
+                                   payment_link_data: dict | None = None):
+        if order := self.tables.payments.get_or_none(id=order_num):
+            if payment_link:
+                order.payment_link = payment_link
+            if payment_link_data:
+                order.payment_link_data = payment_link_data
+            order.save()
+            self.logger.info(self.sign + f'update payment_order: {order.__dict__.get("__data__")}')
+            return order
+
+    async def select_all_payment_orders_user(self, user_id):
+        payment_orders_user = list(self.tables.payments.select().where(self.tables.payments.user_id == user_id))
+        return payment_orders_user

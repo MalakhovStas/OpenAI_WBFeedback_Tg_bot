@@ -77,6 +77,7 @@ async def get_message_handler(message: Message, state: FSMContext) -> None:
 async def get_call_handler(call: CallbackQuery, state: FSMContext) -> None:
     """ Обработчик обратного вызова """
     reply_text, keyboard, next_state = await alm.get_reply(update=call, state=state)
+    disable_w_p_p = False if call.data == 'TopUpBalance' else True
 
     if call.data in ['CreateNewTaskForResponseManually',
                      'SubmitForRevisionTaskResponseManually', 'RegenerateAIResponse']:
@@ -89,7 +90,7 @@ async def get_call_handler(call: CallbackQuery, state: FSMContext) -> None:
         bot.parse_mode = None
 
     sent_message = await bot.send_message(chat_id=call.from_user.id, text=reply_text,
-                                          reply_markup=keyboard, disable_web_page_preview=True)
+                                          reply_markup=keyboard, disable_web_page_preview=disable_w_p_p)
     bot.parse_mode = ParseMode.HTML
 
     await state.update_data(last_handler_sent_message_id=sent_message.message_id,

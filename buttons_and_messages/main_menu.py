@@ -1,5 +1,5 @@
 from buttons_and_messages.personal_cabinet import WildberriesCabinet, SetUpNotificationTimes, SignatureToTheAnswer
-from config import SUPPORT, FACE_BOT, NUM_FEED_BUTTONS, DEFAULT_FEED_ANSWER
+from config import SUPPORT, FACE_BOT, NUM_FEED_BUTTONS, DEFAULT_FEED_ANSWER, PAYMENTS_PACKAGES
 from utils.states import FSMMainMenuStates, FSMPersonalCabinetStates
 from .base_classes import BaseButton, BaseMessage, Utils
 from aiogram.types import CallbackQuery, Message
@@ -266,25 +266,58 @@ class SupportButton(BaseButton):
         return SUPPORT
 
 
-class TopUpBalance(BaseButton):
+class SmallRequestPackage(BaseButton):
     def _set_name(self) -> str:
-        return 'Пополнить'
-
-    def _set_reply_text(self) -> str:
-        return f'Ошибка при генерации ссылки на оплату'
+        package = PAYMENTS_PACKAGES.get(self.class_name)
+        return f"Маленький пакет - {package.get('quantity')} ответов | {package.get('price')} рублей"
 
     async def _set_answer_logic(self, update, state):
-        # reply_text = f'Ссылка на оплату -> user: {update.from_user.id}'
-        reply_text = self.default_service_in_dev
+        payment_link = await self.pay_sys(user_id=update.from_user.id, package_name=self.class_name)
+        reply_text = self.default_text_for_payment_link + payment_link + '\n\n' + self._set_name()
         return reply_text, self.next_state
+
+
+class MediumRequestPackage(BaseButton):
+    def _set_name(self) -> str:
+        package = PAYMENTS_PACKAGES.get(self.class_name)
+        return f"Средний пакет - {package.get('quantity')} ответов | {package.get('price')} рублей"
+
+    async def _set_answer_logic(self, update, state):
+        payment_link = await self.pay_sys(user_id=update.from_user.id, package_name=self.class_name)
+        reply_text = self.default_text_for_payment_link + payment_link + '\n\n' + self._set_name()
+        return reply_text, self.next_state
+
+
+class BigRequestPackage(BaseButton):
+    def _set_name(self) -> str:
+        package = PAYMENTS_PACKAGES.get(self.class_name)
+        return f"Большой пакет - {package.get('quantity')} ответов | {package.get('price')} рублей"
+
+    async def _set_answer_logic(self, update, state):
+        payment_link = await self.pay_sys(user_id=update.from_user.id, package_name=self.class_name)
+        reply_text = self.default_text_for_payment_link + payment_link + '\n\n' + self._set_name()
+        return reply_text, self.next_state
+
+
+class TopUpBalance(BaseButton):
+    def _set_name(self) -> str:
+        return 'Пополнить баланс'
+
+    def _set_reply_text(self) -> str:
+        return FACE_BOT + f'Выберите пакет для оплаты:'
+
+    def _set_children(self) -> list:
+        return [SmallRequestPackage(parent_name=self.class_name),
+                MediumRequestPackage(parent_name=self.class_name),
+                BigRequestPackage(parent_name=self.class_name)]
 
 
 class CallGetBalance(BaseButton):
     def _set_name(self) -> str:
-        return '💰 Баланс'
+        return '💰 Баланс ответов'
 
     def _set_reply_text(self) -> str:
-        return f'\n\n<b>Ваш баланс:</b>' + self.default_bad_text
+        return f'\n\n<b>Вам доступно:</b>' + self.default_bad_text
 
     def _set_children(self) -> list:
         return [TopUpBalance(parent_name=self.class_name)]
@@ -293,7 +326,7 @@ class CallGetBalance(BaseButton):
         user = self.dbase.tables.users.get_or_none(user_id=update.from_user.id)
         reply_text = self.reply_text
         if user:
-            reply_text = reply_text.rstrip(self.default_bad_text) + f'\t{user.balance_requests}'
+            reply_text = reply_text.rstrip(self.default_bad_text) + f'\t{user.balance_requests}\tответов'
         return reply_text, self.next_state
 
 

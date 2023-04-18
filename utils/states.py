@@ -35,3 +35,4 @@ class FSMAdminStates(StatesGroup):
     change_user_requests_balance = State()
     block_user = State()
     unblock_user = State()
+    unload_payment_data_user = State()
