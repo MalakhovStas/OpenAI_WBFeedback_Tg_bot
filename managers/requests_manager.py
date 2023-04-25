@@ -30,7 +30,7 @@ class RequestsManager:
         self.sign = self.__class__.__name__ + ': '
 
     async def __call__(self, url, headers: dict | None = None, method: str | None = None,
-                       data: dict | list | FormData | None = None, list_requests: list | None = None,
+                       data: dict | list | None = None, list_requests: list | None = None,
                        add_headers: bool = False, step: int = 1, use_proxi: bool = True,
                        post_to_form: bool = False) -> Iterable:
         """ Повторяет запрос/запросы, если сервер ответил error=True """
