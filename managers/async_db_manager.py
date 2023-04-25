@@ -88,10 +88,10 @@ class DBManager:
                 self.tables.wildberries.get_or_create(user_id=int(update.from_user.id))
                 fact_create_and_num_users = self.tables.users.select().count()
                 user.user_id = int(update.from_user.id)
-                user.username = update.from_user.username,
-                user.first_name = update.from_user.first_name,
-                user.last_name = update.from_user.last_name,
-                user.position = "admin" if admin else "user",
+                user.username = update.from_user.username
+                user.first_name = update.from_user.first_name
+                user.last_name = update.from_user.last_name
+                user.position = "admin" if admin else "user"
                 user.password = "admin" if admin else None
                 user.save()
 

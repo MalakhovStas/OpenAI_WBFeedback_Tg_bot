@@ -1,8 +1,9 @@
-import asyncio
+import ast
 import functools
 from dataclasses import dataclass, field
 from datetime import datetime
 from types import FunctionType
+
 from aiogram.types import CallbackQuery, Message
 
 from config import WB_TAKE, MODE_GENERATE_ANSWER
@@ -14,23 +15,28 @@ class WBData:
     """Отправляем phone получаем token для ввода кода"""
     """wb api: "https://seller.wildberries.ru/passport/api/v2/auth/login_by_phone/"""
     """{"phone": "111111111", "is_terms_and_conditions_accepted": True}"""
-    send_phone_url: str = 'http://65.21.229.152:1488/auth/login-by-phone'
+    # send_phone_url: str = 'http://65.21.229.152:1488/auth/login-by-phone' Этот api больше не работает
+    send_phone_url: str = 'https://sales.marpla.ru/tokenPhoneNumber.php?phoneNumber={phone}'
     # send_phone_url: str = "https://seller.wildberries.ru/passport/api/v2/auth/login_by_phone/"
 
     """Отправляем код из смс и token -> получаем sellerToken(сессионный в любой момент упадет)"""
     """wb_api: https://seller.wildberries.ru/passport/api/v2/auth/login"""
     """data = {"options": {"notify_code": sms_code}, "token": token}"""
-    send_code_from_sms_url: str = 'http://65.21.229.152:1488/auth/enter-sms'
+    # send_code_from_sms_url: str = 'http://65.21.229.152:1488/auth/enter-sms'
+    send_code_from_sms_url: str = 'https://sales.marpla.ru/tokenGetWB.php'
     # send_code_from_sms_url: str = 'https://seller.wildberries.ru/passport/api/v2/auth/login'
 
     """Отправляем sellerToken -> получаем passportToken(живет 7-10дней нужен для восстановления sellerToken)"""
-    get_passportToken_url: str = 'http://65.21.229.152:1488/auth/passport'
+    # get_passportToken_url: str = 'http://65.21.229.152:1488/auth/passport'
+    get_passportToken_url: str = 'https://sales.marpla.ru/tokenPassportUpdate.php'
 
     """Отправляем passportToken -> получаем sellerToken (этот запрос если упадёт sellerToken)"""
-    get_sellerToken_from_passportToken_url: str = 'http://65.21.229.152:1488/auth/seller'
+    # get_sellerToken_from_passportToken_url: str = 'http://65.21.229.152:1488/auth/seller'
+    get_sellerToken_from_passportToken_url: str = 'https://sales.marpla.ru/tokenSellerUpdate.php'
 
     """Проверка действительности токенов"""
-    introspect_token_url: str = 'http://65.21.229.152:1488/auth/introspect'
+    # introspect_token_url: str = 'http://65.21.229.152:1488/auth/introspect'
+    introspect_token_url: str = 'https://sales.marpla.ru/tokenIntrospect.php'
 
     """Получаем список кабинетов из которых возьмём id -> это и есть x-suplier-id"""
     get_suppliers_url: str = 'https://seller.wildberries.ru/ns/suppliers/suppliers-portal-core/suppliers'
@@ -83,7 +89,7 @@ class WBAPIManager:
             wb_user = await self.dbase.wb_user_get_or_none(user_id=user_id)
             seller_token = wb_user.sellerToken
             passport_token = wb_user.passportToken
-            wb_user_id = wb_user.WB_user_id
+            # wb_user_id = wb_user.WB_user_id
 
             check_result = await self.introspect_seller_token(seller_token=seller_token,
                                                               update=update, user_id=user_id)
@@ -92,11 +98,11 @@ class WBAPIManager:
                 passport_token = await self.get_passport_token(seller_token=seller_token,
                                                                update=update, user_id=user_id)
 
-            if passport_token and (not check_result or check_result != wb_user_id):
+            if passport_token and not check_result:  #(not check_result or check_result != wb_user_id):
                 seller_token = await self.get_seller_token_from_passport_token(passport_token=passport_token,
                                                                                update=update, user_id=user_id)
                 # Для сохранения в БД wb_user_id
-                await self.introspect_seller_token(seller_token=seller_token, update=update, user_id=user_id)
+                # await self.introspect_seller_token(seller_token=seller_token, update=update, user_id=user_id)
 
             if seller_token:
                 kwargs['seller_token'] = seller_token
@@ -123,10 +129,11 @@ class WBAPIManager:
 
     @staticmethod
     async def get_token(response_request: dict) -> str | None:
-        if response_request and response_request.get('success'):
+        if response_request:  # and response_request.get('success'):
             if response := response_request.get('response'):
-                if token := response.get('token'):
-                    return token
+                return response
+                # if token := response.get('token'):
+                #     return token
 
     async def send_phone_number(self, phone_number: str, update: Message | CallbackQuery | None = None,
                                 user_id: int | None = None) -> str | None:
@@ -134,13 +141,16 @@ class WBAPIManager:
         sms_token = None
         user_id = user_id if user_id else update.from_user.id
         if phone_number := await self.m_utils.check_data(phone_number):
+            # response_request = await self.requests_manager(
+            #     url=self.wb_data.send_phone_url,
+            #     method='post',
+            #     data={"phoneNumber": int(phone_number)}
+            #     data={"phone": int(phone_number), "is_terms_and_conditions_accepted": True}, эта строка для wb
+            # )
             response_request = await self.requests_manager(
-                url=self.wb_data.send_phone_url,
-                method='post',
-                data={"phoneNumber": int(phone_number)}
-                # data={"phone": int(phone_number), "is_terms_and_conditions_accepted": True},
+                url=self.wb_data.send_phone_url.format(phone=phone_number),
             )
-            self.logger.debug(self.sign + f'send phoneNumber: {phone_number}, response: {response_request}')
+            self.logger.debug(self.sign + f'send -> {phone_number=} | {response_request=}')
             if sms_token := await self.get_token(response_request):
                 await self.dbase.save_phone_number_and_sms_token(phone_number, sms_token, user_id=user_id)
         return sms_token
@@ -154,7 +164,8 @@ class WBAPIManager:
             response_request = await self.requests_manager(
                 url=self.wb_data.send_code_from_sms_url,
                 method='post',
-                data={"code": sms_code, "token": sms_token}
+                data={"code": sms_code, "token": sms_token},
+                post_to_form=True
             )
             self.logger.debug(self.sign + f'send sms code: {sms_code}, response: {response_request}')
             if seller_token := await self.get_token(response_request):
@@ -167,15 +178,14 @@ class WBAPIManager:
         """Отправляем passportToken -> получаем sellerToken (этот запрос если упадёт sellerToken)"""
         seller_token = None
         user_id = user_id if user_id else update.from_user.id
-
         if passport_token:
             response_request = await self.requests_manager(
                 url=self.wb_data.get_sellerToken_from_passportToken_url,
                 method='post',
-                data={"passportToken": passport_token}
+                data={"passportToken": passport_token},
+                post_to_form=True
             )
-            self.logger.debug(self.sign + f'get_seller_token_from_passport_token -> send passportToken, '
-                                          f'response: {response_request}')
+            self.logger.debug(self.sign + f'send passportToken -> {response_request=}')
             if seller_token := await self.get_token(response_request):
                 await self.dbase.save_seller_token(seller_token, user_id=user_id)
         return seller_token
@@ -188,15 +198,25 @@ class WBAPIManager:
         response_request = await self.requests_manager(
             url=self.wb_data.introspect_token_url,
             method='post',
-            data={"type": "seller", 'token': seller_token}
+            data={"typeToken": 'sellerToken', "token": f"{seller_token}"},
+            post_to_form=True,
         )
 
-        self.logger.debug(self.sign + f'introspect sellerToken, response: {response_request}')
-        if response_request and response_request.get('success'):
+        self.logger.debug(self.sign + f'{response_request=}')
+        if response_request:  # and response_request.get('response'):
             if response := response_request.get('response'):
-                if wb_user_id := response.get('userId'):
-                    await self.dbase.save_wb_user_id(wb_user_id=wb_user_id, user_id=user_id)
-                    return wb_user_id
+                try:
+                    response = response.replace('true', 'True')
+                    response = response.replace('false', 'False')
+                    result = ast.literal_eval(response)
+                    if isinstance(result, dict) and result.get('success') is True:
+                        return result.get('success')
+                except Exception as exc:
+                    self.logger.error(self.sign + f'{exc=}')
+
+                # if wb_user_id := response.get('userId'):
+                #     await self.dbase.save_wb_user_id(wb_user_id=wb_user_id, user_id=user_id)
+                #     return wb_user_id
         return False
 
     async def get_passport_token(self, seller_token: str, update: Message | CallbackQuery | None = None,
@@ -210,9 +230,12 @@ class WBAPIManager:
             response_request = await self.requests_manager(
                 url=self.wb_data.get_passportToken_url,
                 method='post',
-                data={"sellerToken": seller_token}
+                data={"sellerToken": seller_token},
+                post_to_form=True
             )
-            self.logger.debug(self.sign + f'get_passport_token -> send sellerToken, response: {response_request}')
+
+            self.logger.error(self.sign + f' -> send sellerToken -> {response_request=}')
+
             if passport_token := await self.get_token(response_request):
                 await self.dbase.save_passport_token(passport_token, user_id=user_id)
         return passport_token

@@ -30,16 +30,19 @@ class RequestsManager:
         self.sign = self.__class__.__name__ + ': '
 
     async def __call__(self, url, headers: dict | None = None, method: str | None = None,
-                       data: dict | list | None = None, list_requests: list | None = None,
-                       add_headers: bool = False, step: int = 1, use_proxi: bool = True) -> Iterable:
+                       data: dict | list | FormData | None = None, list_requests: list | None = None,
+                       add_headers: bool = False, step: int = 1, use_proxi: bool = True,
+                       post_to_form: bool = False) -> Iterable:
         """ Повторяет запрос/запросы, если сервер ответил error=True """
 
         if not headers:
             headers = self.content_type | self.user_agent
         elif headers and add_headers:
             headers = self.content_type | self.user_agent | headers
+
         if not method:
             method = 'get'
+
         if list_requests:
             result = await self.aio_request_gather(list_requests=list_requests,
                                                    headers=headers,
@@ -52,7 +55,8 @@ class RequestsManager:
                 headers=headers,
                 method=method,
                 data=data,
-                use_proxi=use_proxi
+                use_proxi=use_proxi,
+                post_to_form=post_to_form
             )
         if isinstance(result, dict) and result.get('error'):
             step = step + 1
@@ -83,23 +87,43 @@ class RequestsManager:
         ip, port, login, password = None, None, None, None
 
         if USE_PROXI:
-            proxi = random.choice(self.proxies)
-            if await self.check_proxi(proxi):
-                ip, port, login, password = proxi.split('\t')
-                self.logger.debug(self.sign + f'\033[31mUSE PROXI -> '
-                                              f'{ip=} | {port=} | {login=} | {password=} | {TYPE_PROXI=}\033[0m')
+            try:
+                proxi = random.choice(self.proxies)
+                if await self.check_proxi(proxi):
+                    ip, port, login, password = proxi.split('\t')
+                    self.logger.debug(self.sign + f'\033[31mUSE PROXI -> '
+                                                  f'{ip=} | {port=} | {login=} | {password=} | {TYPE_PROXI=}\033[0m')
+            except Exception as exc:
+                self.logger.error(self.sign + f'{exc=}')
+
         return ip, port, login, password
 
     async def aio_request(self, url, headers, method: str = 'get',
-                          data: dict | None = None, use_proxi: bool = True) -> dict | list:
+                          data: dict | None = None, use_proxi: bool = True,
+                          post_to_form: bool = False) -> dict | list:
         """ Повторяет запрос, если во время выполнения запроса произошло исключение из Exception"""
         step = 1
         result = dict()
-        ip, port, login, password = await self.get_proxi() if use_proxi else None, None, None, None
+        proxi = await self.get_proxi() if use_proxi else None, None, None, None
 
-        data = json.dumps(data) if isinstance(data, (dict, list)) else None
-        self.logger.debug(self.sign+f'{step=} func aio_request -> sending request to: '
-                                    f'{url=} | {method=} | {str(data)[:100]=}... | {str(headers)[:100]=}...')
+        try:
+            ip, port, login, password = proxi[0]
+        except Exception as exc:
+            self.logger.error(self.sign + f'{proxi=} | {exc=}')
+            ip, port, login, password = None, None, None, None
+
+        if post_to_form:
+            headers.pop('Content-Type')
+
+        if not post_to_form and isinstance(data, (dict, list)):
+            data = json.dumps(data)
+        if post_to_form and isinstance(data, (dict, list)):
+            data = data
+        else:
+            data = None
+
+        self.logger.debug(self.sign+f'{step=} -> sending request to: '
+                                    f'{url=} | {method=} | {str(data)=} | {str(headers)[:100]=}...')
         if ip and port and login and password:
             connector = ProxyConnector(
                 proxy_type=self.proxi_types.get(TYPE_PROXI.lower()),
@@ -140,8 +164,9 @@ class RequestsManager:
                                                     f'| use proxi {ip=} | {port=} | {login=} | {password=} -> {text}')
                     step += 1
                 else:
-                    self.logger.debug(self.sign + f'{step=} | func=aio_request return={str(result)[:100]}...')
                     break
+        # self.logger.debug(self.sign + f'{step=} | return={str(result)[:100]}...')
+        self.logger.info(self.sign + f'{step=} | {proxi=} | return={str(result)}')
         return result
 
     async def aio_request_gather(
