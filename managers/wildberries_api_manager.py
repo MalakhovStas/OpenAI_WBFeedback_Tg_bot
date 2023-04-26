@@ -262,7 +262,7 @@ class WBAPIManager:
             headers={"Cookie": f"WBToken={seller_token}"},
             add_headers=True
         )
-        self.logger.debug(self.sign + f'send sellerToken -> {response=}')
+        self.logger.debug(self.sign + f'send sellerToken -> {str(response)[:100]=}')
         if response:
             try:
                 suppliers = {
@@ -285,7 +285,7 @@ class WBAPIManager:
         if not suppliers:
             self.logger.warning(self.sign + f'BAD -> {suppliers=} | {response=}')
 
-        self.logger.debug(self.sign + f'OK -> return {suppliers=}')
+        self.logger.debug(self.sign + f'OK -> return {str(suppliers)[:100]=}')
         return suppliers
 
     @wrapper_checking_seller_token_before_sending_request
