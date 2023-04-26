@@ -89,7 +89,7 @@ class WBAPIManager:
             wb_user = await self.dbase.wb_user_get_or_none(user_id=user_id)
             seller_token = wb_user.sellerToken
             passport_token = wb_user.passportToken
-            # wb_user_id = wb_user.WB_user_id
+            wb_user_id = wb_user.WB_user_id
 
             check_result = await self.introspect_seller_token(seller_token=seller_token,
                                                               update=update, user_id=user_id)
@@ -98,11 +98,11 @@ class WBAPIManager:
                 passport_token = await self.get_passport_token(seller_token=seller_token,
                                                                update=update, user_id=user_id)
 
-            if passport_token and not check_result:  #(not check_result or check_result != wb_user_id):
+            if passport_token and (not check_result or check_result != wb_user_id):
                 seller_token = await self.get_seller_token_from_passport_token(passport_token=passport_token,
                                                                                update=update, user_id=user_id)
                 # Для сохранения в БД wb_user_id
-                # await self.introspect_seller_token(seller_token=seller_token, update=update, user_id=user_id)
+                await self.introspect_seller_token(seller_token=seller_token, update=update, user_id=user_id)
 
             if seller_token:
                 kwargs['seller_token'] = seller_token
@@ -127,10 +127,13 @@ class WBAPIManager:
     #                 setattr(self, attr_name, self.wrapper_checking_seller_token_before_sending_request(method))
     #                 print("WBAPIManager decorate_methods2!!!", attr_name)
 
-    @staticmethod
-    async def get_token(response_request: dict) -> str | None:
+    # @classmethod
+    async def get_token(self, response_request: dict, to_dict: bool = False) -> str | dict | None:
         if response_request:  # and response_request.get('success'):
             if response := response_request.get('response'):
+                if to_dict:
+                    response = ast.literal_eval(response)
+                self.logger.debug(self.sign + f'{to_dict=} | {type(response)=} | {response=}')
                 return response
                 # if token := response.get('token'):
                 #     return token
@@ -168,8 +171,14 @@ class WBAPIManager:
                 post_to_form=True
             )
             self.logger.debug(self.sign + f'send sms code: {sms_code}, response: {response_request}')
-            if seller_token := await self.get_token(response_request):
-                await self.dbase.save_seller_token(seller_token, user_id=user_id)
+            """{'response': '{"sellerToken":"Aoe_vRr-88bEDP7B0OIMQrQR7xkkKyPa0M1Kl5wu5VDdg4vc-9gWoMauzNMrgRll4lFR8AIs-zXOXXYh45OIdKbLwDv0UTrGtJU-MnZRDkqEfA","passportToken":"Aoe_vRqA9MbEDIDC0OIMNwpoBgV96NkLPNe9Oa0WuElDDckNREc8OLQwAJ2RqZR2ghi4yQKi_YAY9aVZxQr-jugyGYtufVM"}'}"""
+
+            if tokens := await self.get_token(response_request, to_dict=True):
+                if isinstance(tokens, dict):
+                    if seller_token := tokens.get('sellerToken'):
+                        await self.dbase.save_seller_token(seller_token=seller_token, user_id=user_id)
+                    if passport_token := tokens.get('passportToken'):
+                        await self.dbase.save_passport_token(passport_token=passport_token, user_id=user_id)
         return seller_token
 
     async def get_seller_token_from_passport_token(self, passport_token: str,
@@ -201,22 +210,20 @@ class WBAPIManager:
             data={"typeToken": 'sellerToken', "token": f"{seller_token}"},
             post_to_form=True,
         )
+        """type=<class str> | '{"userID":54968038,"employeeID":0,"sessionID":"Aub9mhqE_cDEDITLyuIMQorNKHY9XdEa7440gp6VLpYfTsSAuHaUd8WxVVvQ51ZhM5avrd6HMRFiJ2MqEcx1u3RVvT6nGUIGCbR6eneDTY8_sg"}'"""
+        if data := await self.get_token(response_request, to_dict=True):
+            if isinstance(data, dict):
+                if wb_user_id := data.get('userID'):
+                    await self.dbase.save_wb_user_id(wb_user_id=wb_user_id, user_id=user_id)
+                    self.logger.debug(self.sign + f'return: {wb_user_id=}')
+                    return wb_user_id
 
-        self.logger.debug(self.sign + f'{response_request=}')
-        if response_request:  # and response_request.get('response'):
-            if response := response_request.get('response'):
-                try:
-                    response = response.replace('true', 'True')
-                    response = response.replace('false', 'False')
-                    result = ast.literal_eval(response)
-                    if isinstance(result, dict) and result.get('success') is True:
-                        return result.get('success')
-                except Exception as exc:
-                    self.logger.error(self.sign + f'{exc=}')
-
-                # if wb_user_id := response.get('userId'):
-                #     await self.dbase.save_wb_user_id(wb_user_id=wb_user_id, user_id=user_id)
-                #     return wb_user_id
+                    # Если когда-то понадобится
+                    # if employee_id := data.get('employeeID'):
+                    #     ...
+                    # if session_id := data.get('sessionID'):
+                    #     ...
+        self.logger.warning(self.sign + f'return: False')
         return False
 
     async def get_passport_token(self, seller_token: str, update: Message | CallbackQuery | None = None,
