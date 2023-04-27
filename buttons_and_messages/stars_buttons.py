@@ -147,6 +147,6 @@ class UnansweredFeedbackManagement(BaseButton, Utils):
                 await self.__logic_set_childrens(button=chbtn, feeds_by_stars=feeds_by_5_stars,
                                                  update=update, state=state, user_id=user_id)
 
-        reply_text = self.default_not_feeds_in_supplier if len(self.children_buttons) <= 1 else self.reply_text
         self.children_buttons.append(go_to_back) if not go_to_back in self.children_buttons else None
+        reply_text = self.default_not_feeds_in_supplier if len(self.children_buttons) <= 1 else self.reply_text
         return reply_text, self.next_state

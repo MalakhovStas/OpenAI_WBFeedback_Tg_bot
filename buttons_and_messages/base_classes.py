@@ -36,6 +36,7 @@ class Base(ABC):
     default_incorrect_data_input_text = FACE_BOT + 'Введены некорректные данные - {text}'
     default_generate_answer = FACE_BOT + '✍ Пишу текст... , немного подождите пожалуйста ...'
     default_download_information = FACE_BOT + '🌐 {about}\nнемного подождите пожалуйста ...'
+    default_choice_menu = FACE_BOT + '<b>Выберите пункт меню:</b>'
     default_choice_feedback = FACE_BOT + '<b>Выберите отзыв:</b>'
     default_not_feeds_in_supplier = FACE_BOT + '<b>Отзывов пока нет</b>'
     default_i_generate_text = FACE_BOT + 'Я сгенерировал текст:\n\n'

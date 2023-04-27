@@ -13,7 +13,8 @@ class PersonalCabinet(BaseButton):
         return '⚙ \t Личный кабинет'
 
     def _set_reply_text(self) -> str:
-        return FACE_BOT + '<b>Выберите пункт меню:</b>'
+        # return FACE_BOT + '<b>Выберите пункт меню:</b>'
+        return self.default_choice_menu
 
     def _set_next_state(self) -> str:
         return FSMPersonalCabinetStates.personal_cabinet
@@ -195,7 +196,9 @@ class MessageOnceForCreateResponseManuallyButton(BaseMessage):
                 CreateNewTaskForResponseManually(parent_name=self.class_name, parent_button=self)]
 
     async def _set_answer_logic(self, update: Message, state: FSMContext) -> tuple[str | tuple, str | None]:
-        # reply_text = 'Я сгенерировал текст:\n\n'
+        self.children_buttons = [RegenerateAIResponse(new=False),
+                                 SubmitForRevisionTaskResponseManually(new=False),
+                                 CreateNewTaskForResponseManually(new=False)]
         reply_text = self.default_i_generate_text
         user_id = update.from_user.id
         task_to_generate_ai = update.text.strip()
@@ -205,8 +208,8 @@ class MessageOnceForCreateResponseManuallyButton(BaseMessage):
             user_id=user_id, action='add', button_name='ai_messages_data',
             instance_button=list(), updates_data=True)
 
-        ai_answer = await self.ai.some_question(prompt=task_to_generate_ai, messages_data=ai_messages_data,
-                                                user_id=user_id, update=update)
+        ai_answer = await self.ai.some_question(
+            prompt=task_to_generate_ai, messages_data=ai_messages_data, user_id=user_id, update=update)
 
         if ai_answer != DEFAULT_FEED_ANSWER:
             reply_text = reply_text + ai_answer + ':ai:some_question'
@@ -336,7 +339,8 @@ class MainMenu(BaseButton):
         return 'ℹ \t Главное меню'  # 📒
 
     def _set_reply_text(self) -> str:
-        return FACE_BOT + '<b>Выберите один из пунктов главного меню:</b>'
+        # return FACE_BOT + '<b>Выберите один из пунктов главного меню:</b>'
+        return self.default_choice_menu
 
     def _set_next_state(self) -> str:
         return 'reset_state'

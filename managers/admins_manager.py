@@ -2,11 +2,14 @@
 import asyncio
 from datetime import datetime, timedelta
 
-from aiogram.types import Message
-from utils.states import FSMAdminStates
-from config import ADMINS, TECH_ADMINS, PATH_FILE_DEBUG_LOGS, PATH_FILE_ERRORS_LOGS
-from aiogram.utils.exceptions import BotBlocked, UserDeactivated, ChatNotFound
 import openpyxl
+import psutil
+from aiogram.types import Message
+from aiogram.utils.exceptions import BotBlocked, UserDeactivated, ChatNotFound
+
+from buttons_and_messages.base_classes import Base
+from config import ADMINS, TECH_ADMINS, PATH_FILE_DEBUG_LOGS, PATH_FILE_ERRORS_LOGS
+from utils.states import FSMAdminStates
 
 
 class AdminsManager:
@@ -60,7 +63,8 @@ class AdminsManager:
                    f'<b>/block_user</b> - заблокировать пользователя\n' \
                    f'<b>/unblock_user</b> - разблокировать пользователя\n' \
                    f'<b>/change_user_requests_balance</b> - изменить баланс ответов пользователя\n'\
-                   f'<b>/unload_payment_data_user</b> - выгрузить данные по оплатам пользователя\n'
+                   f'<b>/unload_payment_data_user</b> - выгрузить данные по оплатам пользователя\n' \
+                   f'<b>/load_stat</b> - данные по нагрузке на сервер\n'
                    # f'<b>/change_user_balance</b> - изменить баланс пользователя\n' \
                    # f'<b>/unloading_logs</b> - выгрузка логов'
 
@@ -99,6 +103,9 @@ class AdminsManager:
         elif command == '/unload_payment_data_user':
             text = '<b>Введите id пользователя:</b>'
             next_state = FSMAdminStates.unload_payment_data_user
+
+        elif command == '/load_stat':
+            text = await self.load_stat()
 
         else:
             num_users = await self.dbase.count_users(all_users=True)
@@ -346,3 +353,55 @@ class AdminsManager:
             result = open('unload_payment_data_user.xlsx', 'rb')
             type_result = 'document'
         return result, type_result, next_state
+
+    @staticmethod
+    async def get_obj_size(obj) -> int:
+        import gc
+        import sys
+        marked = {id(obj)}
+        obj_q = [obj]
+        sz = 0
+        while obj_q:
+            cur_obj = obj_q.pop(0)
+            sz += sys.getsizeof(cur_obj)
+            all_refr = ((id(o), o) for o in gc.get_referents(cur_obj))
+            new_refr = list(filter(lambda o: o[0] not in marked, all_refr))
+            if len(new_refr) > 0:
+                refr_id, refr = zip(*new_refr)
+                obj_q.extend(refr)
+                marked.update(refr_id)
+        return sz
+
+    @classmethod
+    async def load_stat(cls) -> str:
+        gb = 1073741824
+        virtual_memory = psutil.virtual_memory()
+        swap_memory = psutil.swap_memory()
+        disc = psutil.disk_usage('/')
+        vals = {
+            1: (1, 'byte'),
+            2: (1, 'byte'),
+            3: (1, 'byte'),
+            4: (1024, 'Kb'),
+            5: (1024, 'Kb'),
+            6: (1024, 'Kb'),
+            7: (1048576, 'Mb'),
+            8: (1048576, 'Mb'),
+            9: (1048576, 'Mb'),
+            10: (1073741824, 'Gb'),
+            11: (1073741824, 'Gb')
+        }
+        gen_coll = await cls.get_obj_size(Base.general_collection)
+        num = len(str(gen_coll))
+        result = f'&#9888 <b><i>Нагрузка системы</i></b>:\n' \
+                 f'<b>Нагрузка CPU</b>:    {psutil.cpu_percent(interval=1)} %\n' \
+                 f'<b>Нагрузка RAM</b>:    {virtual_memory.percent} %\n' \
+                 f'<b>Нагрузка SWAP</b>:    {swap_memory.percent} %\n' \
+                 f'<b>Заполнение HDD</b>:    {disc.percent} %\n\n' \
+                 f'<b>Физических CPU</b>:    {psutil.cpu_count(logical=False)} шт\n' \
+                 f'<b>Логических CPU</b>:    {psutil.cpu_count()} шт\n' \
+                 f'<b>Размер RAM</b>:    {round(virtual_memory.total / gb, 2)} Gb\n' \
+                 f'<b>Размер SWAP</b>:    {round(swap_memory.total / gb, 2)} Gb\n' \
+                 f'<b>Размер HDD</b>:    {round(disc.total / gb, 2)} Gb\n' \
+                 f'<b>General collection</b>:    {round(gen_coll / vals.get(num)[0], 2)} {vals.get(num)[1]}\n'
+        return result

@@ -9,7 +9,7 @@ from utils.states import FSMAdminStates
                               'stat', 'users_info', 'mailing_admins',
                               'block_user', 'unblock_user', 'change_user_balance',
                               'unloading_logs', 'change_user_requests_balance',
-                              'unload_payment_data_user'], state='*')
+                              'unload_payment_data_user', 'load_stat'], state='*')
 async def admins_commands_handler(message: Message, state: FSMContext) -> None:
     result, next_state, type_result = await adm.admin_commands(message=message)
 

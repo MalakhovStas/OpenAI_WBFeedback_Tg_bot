@@ -141,6 +141,7 @@ class SelectAPIMode(BaseButton, Utils):
         return {message.state_or_key: message for message in messages}
 
     async def _set_answer_logic(self, update: Message, state: FSMContext):
+        self.children_buttons = [GoToBack(new=False)]
         reply_text, next_state = self.reply_text, self.next_state
         user_id = update.from_user.id
 
@@ -236,6 +237,7 @@ class SelectSupplierIDMode(BaseButton, Utils):
         return [EnterSupplierID(parent_name=self.class_name), GoToBack(new=False)]
 
     async def _set_answer_logic(self, update, state):
+        self.children_buttons = [EnterSupplierID(new=False), GoToBack(new=False)]
         reply_text, next_state = FACE_BOT + ' <b>Магазинов пока нет, добавьте</b>', self.next_state
 
         if parsing_suppliers := await self.parsing_suppliers_buttons_logic(update=update, state=state,
