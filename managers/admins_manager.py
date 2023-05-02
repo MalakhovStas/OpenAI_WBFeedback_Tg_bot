@@ -22,10 +22,11 @@ class AdminsManager:
             cls.__instance = super().__new__(cls)
         return cls.__instance
 
-    def __init__(self, bot, logger, dbase):
+    def __init__(self, bot, logger, dbase, rm):
         self.bot = bot
         self.logger = logger
         self.dbase = dbase
+        self.requests_manager = rm
         self.admins = tuple(map(int, ADMINS)) if ADMINS else tuple()
         self.tech_admins = tuple(map(int, TECH_ADMINS)) if TECH_ADMINS else tuple()
         self.sign = self.__class__.__name__ + ': '
@@ -64,7 +65,8 @@ class AdminsManager:
                    f'<b>/unblock_user</b> - разблокировать пользователя\n' \
                    f'<b>/change_user_requests_balance</b> - изменить баланс ответов пользователя\n'\
                    f'<b>/unload_payment_data_user</b> - выгрузить данные по оплатам пользователя\n' \
-                   f'<b>/load_stat</b> - данные по нагрузке на сервер\n'
+                   f'<b>/load_stat</b> - данные по нагрузке на сервер\n' \
+                   f'<b>/check_proxies</b> - проверить прокси\n'
                    # f'<b>/change_user_balance</b> - изменить баланс пользователя\n' \
                    # f'<b>/unloading_logs</b> - выгрузка логов'
 
@@ -106,6 +108,9 @@ class AdminsManager:
 
         elif command == '/load_stat':
             text = await self.load_stat()
+
+        elif command == '/check_proxies':
+            text = await self.check_proxies()
 
         else:
             num_users = await self.dbase.count_users(all_users=True)
@@ -404,4 +409,21 @@ class AdminsManager:
                  f'<b>Размер SWAP</b>:    {round(swap_memory.total / gb, 2)} Gb\n' \
                  f'<b>Размер HDD</b>:    {round(disc.total / gb, 2)} Gb\n' \
                  f'<b>General collection</b>:    {round(gen_coll / vals.get(num)[0], 2)} {vals.get(num)[1]}\n'
+        return result
+
+    async def check_proxies(self) -> str:
+        data = await self.requests_manager.check_all_proxies()
+        working_proxies = [val for val in data.values() if val is True]
+        failed_proxies = [val for val in data.values() if val is False]
+        result = f'&#9888 <b><i>Проверка прокси серверов</i></b>:\n' \
+                 f'<b>Всего прокси</b>:    {len(data)} \n' \
+                 f'<b>Работают</b>:    {len(working_proxies)}\n' \
+                 f'<b>Не работают</b>:    {len(failed_proxies)}\n\n'
+
+        if len(failed_proxies) <= 10:
+            result += f'<b>Cписок неработающих прокси</b>:\n'
+            for key, value in data.items():
+                if value is False:
+                    result += f'{key}\n'
+
         return result

@@ -87,7 +87,6 @@ else:
 
 
 """ Конфигурация логирования """
-
 errors_format = '{time:DD-MM-YYYY at HH:mm:ss} | {level: <8} | {file: ^20} | {message}'
 debug_format = '{time:DD-MM-YYYY at HH:mm:ss} | {level: <8} | file: {file: ^30} | ' \
                'func: {function: ^30} | line: {line: >3} | message: {message}'

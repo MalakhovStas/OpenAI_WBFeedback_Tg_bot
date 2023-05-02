@@ -108,15 +108,30 @@ class RequestsManager:
             proxies = file.read().splitlines()
         return proxies if proxies else list()
 
-    async def get_proxi(self):
+    async def check_all_proxies(self):
+        """ Проверяет работоспособность всех прокси из файла proxi.txt """
+        result = {}
+        for proxi in self.proxies:
+            ip, port, login, password = await self.get_proxi(proxi)
+            if ip and port and login and password:
+                result.update({f'{login}:{password}@{ip}:{port}': True})
+            else:
+                result.update({proxi: False})
+        return result
+
+    async def get_proxi(self, check_raw_proxi: str | None = None) -> tuple:
         ip, port, login, password = None, None, None, None
 
         if USE_PROXI:
             try:
-                proxi = random.choice(self.proxies)
+                if not check_raw_proxi:
+                    proxi = random.choice(self.proxies)
+                else:
+                    proxi = check_raw_proxi
                 proxi = proxi.replace(' ', '\t')
                 ip, port, login, password = proxi.split('\t')
-                self.logger.debug(self.sign + f'\033[35mUSE PROXI -> {ip=}, {port=}, {login=}, '
+                text = 'CHECK_PROXI' if check_raw_proxi else 'USE PROXI'
+                self.logger.debug(self.sign + f'\033[35m{text} -> {ip=}, {port=}, {login=}, '
                                               f'{password=}, {TYPE_PROXI=}\033[0m')
                 if not await self.check_proxi(ip=ip,  port=port, login=login, password=password):
                     ip, port, login, password = None, None, None, None

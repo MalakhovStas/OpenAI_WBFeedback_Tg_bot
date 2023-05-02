@@ -109,4 +109,3 @@
 45.152.208.125	8156	bowiabti	kxte07lwuxk0
 45.154.228.218	8242	bowiabti	kxte07lwuxk0
 45.130.60.15	9542	bowiabti	kxte07lwuxk0
-23.229.126.119	7648	bowiabti	kxte07lwuxk0

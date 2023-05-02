@@ -38,7 +38,7 @@ rdm = ReloadDumpManager(dbase=dbase, logger=logger)
 rm = RequestsManager(logger=logger)
 pay_sys = ProdamusManager(rm=rm, dbase=dbase, logger=logger)
 ai = OpenAIManager(dbase=dbase, bot=bot, logger=logger)
-adm = AdminsManager(bot=bot, logger=logger, dbase=dbase)
+adm = AdminsManager(bot=bot, logger=logger, dbase=dbase, rm=rm)
 
 wb_api = WBAPIManager(dbase=dbase, rm=rm, ai=ai, logger=logger)
 wb_parsing = WBParsingManager(dbase=dbase, bot=bot, rm=rm, ai=ai, logger=logger)
