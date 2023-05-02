@@ -420,7 +420,7 @@ class AdminsManager:
                  f'<b>Работают</b>:    {len(working_proxies)}\n' \
                  f'<b>Не работают</b>:    {len(failed_proxies)}\n\n'
 
-        if len(failed_proxies) <= 10:
+        if failed_proxies and len(failed_proxies) <= 10:
             result += f'<b>Cписок неработающих прокси</b>:\n'
             for key, value in data.items():
                 if value is False:

@@ -94,12 +94,11 @@ class RequestsManager:
                 result = {'response': exc}
 
         if result.get('response') == ip:
-            self.logger.debug(self.sign + f'\033[32mGOOD PROXI {ip=}, {port=}, {login=}, '
-                                          f'{password=}, {TYPE_PROXI=}\033[0m')
+            self.logger.debug(self.sign + f'GOOD PROXI {ip=}, {port=}, {login=}, {password=}, {TYPE_PROXI=}')
             return True
         else:
-            self.logger.warning(self.sign + f'\033[31mERROR PROXI {ip=}, {port=}, {login=}, '
-                                            f'{password=}, {TYPE_PROXI=} | {result=}\033[0m')
+            self.logger.warning(self.sign + f'ERROR PROXI {ip=}, {port=}, {login=}, '
+                                            f'{password=}, {TYPE_PROXI=} | {result=}')
             return False
 
     @staticmethod
@@ -131,8 +130,8 @@ class RequestsManager:
                 proxi = proxi.replace(' ', '\t')
                 ip, port, login, password = proxi.split('\t')
                 text = 'CHECK_PROXI' if check_raw_proxi else 'USE PROXI'
-                self.logger.debug(self.sign + f'\033[35m{text} -> {ip=}, {port=}, {login=}, '
-                                              f'{password=}, {TYPE_PROXI=}\033[0m')
+                self.logger.debug(self.sign + f'{text} -> {ip=}, {port=}, {login=}, '
+                                              f'{password=}, {TYPE_PROXI=}')
                 if not await self.check_proxi(ip=ip,  port=port, login=login, password=password):
                     ip, port, login, password = None, None, None, None
             except Exception as exc:
